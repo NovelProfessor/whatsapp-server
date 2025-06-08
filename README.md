@@ -67,11 +67,11 @@ Open the login.html page in an editor and update the below line with your web so
 ```
 const webSocket = new WebSocket('ws://7.tcp.ngrok.io:21149/');
 ```
-
 > [!NOTE]
 > Creating TCP Address on NGROK requires upgrading the free account to Pay-as-you-go account which costs minimum 8 dollars per month.
 
-### Other public endpoint providers
+
+### Other public API gateway providers
 Below is a list of other providers who offer similar service.
 
 [localtunnel.me][localtunnel]
@@ -81,6 +81,10 @@ Below is a list of other providers who offer similar service.
 [onionpipe][onionpipe]
 
 [tunnelmole][tunnelmole]
+
+
+### Using a VPS Cloud Hosting solution
+If you want to host the server side code on the cloud instead of your local PC + API gateway, then I recommend getting a VPS running Ubuntu Desktop from [Webdock.io][webdock], I am using their Enterprise Xeon VPS plan (64 Gb Memory, 30 Threads CPU, 500 Gb storage) with Ubuntu Desktop for 68.20 Euro per month, I found that this is the best value deal comparing it with other VPS providers.  You need a full "Desktop" version of Ubuntu running on the server, if you get a normal AWS EC2 Ubuntu instance, it won't have the GUI libraries and the server won't be able to run a full Chromium browser due to missing dependences, manually installing all the Chromium dependencies requires a lot of trial and error and troubleshooting with the version conflicts of the dependencies.
 
 ## Supported features
 
@@ -149,3 +153,4 @@ limitations under the License.
 [onionpipe]: https://github.com/cmars/onionpipe
 [tunnelmole]: https://tunnelmole.com/
 [whatsapp]: https://whatsapp.com
+[webdock]: https://webdock.io/en/pricing#Special-Offers
