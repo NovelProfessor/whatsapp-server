@@ -206,35 +206,7 @@ app.get('/api/messages/:receiver/:sender', async (req, res) => {
 
 
 
-app.get('/users4483', async (req,res) =>{
-    
-    // Reference to ClientInfo object:
-    // https://docs.wwebjs.dev/ClientInfo.html
 
-    let html = "<style>table, th, td {border: 1px solid black; border-collapse: collapse;}</style>";
-
-    html+="<table>";
-    html+= "<tr><td>User</td><td>Platform</td><td>Mobile</td></tr>";
-
-    const clients = sg.getSocketList();
-
-    for (var userId in clients){
-        const client = sg.getSocketById(userId); //userId is mobile number
-        console.log(`retrieved user from socket list: ${client.info.pushname}`);
-        html+="<tr>"
-        html+="<td>" + client.info.pushname + "</td>"
-        html+="<td>" + client.info.platform + "</td>"
-        let mobile = client.info.wid.user;
-        //html+="<td>" + mobile.substr(0,3) + "xxxx" + mobile.substr(mobile.length - 3) + "</td>"
-        html+="<td>" + mobile + "</td>"
-        html+="</tr>"
-    };
-  
-    html+="</table>";
-
-    res.send(html);
-
-});
 
 app.post('/api/messages/:id', async (req, res) => {
     try {
