@@ -1,18 +1,13 @@
-const sqlite3 = require('sqlite3');
-const sql3 = sqlite3.verbose();
-
-const connected = (err) => {
-    if(err){
-        console.log(err.message);
-        return;
-    }
-    console.log('Connected to the database.');
-
-}
-
-const DB = new sql3.Database('./mydata.db', sqlite3.OPEN_READWRITE, connected);
+import sqlite3 from 'sqlite3';
+import {open} from 'sqlite';
 
 
+
+const db = await open({
+    filename: './mydata.db',
+    driver: sqlite3.Database
+});
+console.log(`connected to database.`)
 
 let sql = `CREATE TABLE IF NOT EXISTS users (
     _id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,13 +18,8 @@ let sql = `CREATE TABLE IF NOT EXISTS users (
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 )`;
 
-DB.run(sql, [], (err)=>{
-    if(err){
-        console.log(err.message);
-        return;
-    }
-    console.log('Users table created successfully');
-});
+await db.exec(sql);
+console.log(`users table created.`);
 
 
 sql = `CREATE TABLE IF NOT EXISTS chats (
@@ -44,13 +34,8 @@ sql = `CREATE TABLE IF NOT EXISTS chats (
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 )`;
 
-DB.run(sql, [], (err) => {
-    if(err){
-        console.log(err.message);
-        return;
-    }
-    console.log('Chats table created successfully');
-});
+await db.exec(sql);
+console.log(`chats table created.`);
 
 
 sql = `CREATE TABLE IF NOT EXISTS messages (
@@ -65,12 +50,7 @@ sql = `CREATE TABLE IF NOT EXISTS messages (
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 )`;
 
-DB.run(sql, [], (err) => {
-    if(err){
-        console.log(err.message);
-        return;
-    }
-    console.log('Messages table created successfully');
-});
+await db.exec(sql);
+console.log(`messages table created.`);
 
-module.exports = DB;
+export {db};

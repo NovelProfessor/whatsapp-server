@@ -22,9 +22,7 @@ var singleton = function singleton(){
         return socketList[userId];
     };
  
-    if(singleton.caller != singleton.getInstance){
-        throw new Error("This object cannot be instanciated");
-    }
+ 
 }
  
 /* ************************************************************************
@@ -43,4 +41,5 @@ singleton.getInstance = function(){
     return this.instance;
 }
  
-module.exports = singleton.getInstance();
+const sg = singleton.getInstance();
+export {sg};
