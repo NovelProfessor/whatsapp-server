@@ -17,6 +17,7 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 // Use the express-fileupload middleware
 app.use(fileUpload());
 
+const DB = require('./connect.js');
 const Message = require('./models/message.model.js');
 const Chat = require('./models/chat.model.js');
 const User = require('./models/user.model.js');
@@ -86,34 +87,24 @@ app.get('/api/chats/:receiver', async (req, res) => {
         if(client == undefined)
             return res.status(401).json({error: "User session not found"});
 
+        DB.all(`SELECT * from chats WHERE receiver = ? LIMIT 20`, [receiver], (err, rows)=> {
+            if(err)
+                throw err;
 
-        const chats = await Chat.find({ receiver: receiver })
-            .select('sender senderName message createdAt updatedAt status')
-            .sort({ createdAt: -1 })
-            .limit(pageSize)
-            .skip(pageSize * page);
+            let chats = rows.map((row) => ({
+                sender: row.sender,
+                senderName: row.sender_name,
+                message: row.message,
+                status: row.status,
+                createdAt: row.timestamp,
+                updatedAt: row.timestamp
+            })
+                
+            );
 
+            res.status(200).json({chats: chats});
+        });
 
-            Chat.updateMany({ receiver: receiver }, {
-                $set:
-                {
-                    status: 1
-                }
-            }, { upsert: false })
-                .then(result => {
-                    //console.log('Update result:', result);
-                    if (result.modifiedCount > 0) {
-                        //console.log('Message updated successfully');
-                    } else {
-                        //console.log('Message not found');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error updating Message:', error);
-                });
-
-
-        res.status(200).json({ chats: chats });
 
     } catch (error) {
         console.log(error);
@@ -186,17 +177,30 @@ app.get('/api/messages/:receiver/:sender', async (req, res) => {
         if(client == undefined)
             return res.status(401).json({error: "User session not found"});
 
-        const messages = await Message.find({
-            $or: [
-                { receiver: receiver, sender: sender },
-                { receiver: sender, sender: receiver }
-            ]
-        })
-            .sort({ createdAt: -1 })
-            .limit(pageSize)
-            .skip(pageSize * page);
+        let sql = `SELECT * FROM messages where (receiver = ? and sender = ?) or (receiver = ? and sender = ?)`;
+        DB.all(sql, [receiver, sender, sender, receiver], (err, rows) => {
+            if(err)
+                throw err;
 
-        res.status(200).json({ messages: messages });
+            let messages = rows.map(row => (
+                {
+                    sender: row.sender,
+                    receiver: row.receiver,
+                    message: row.message,
+                    status: row.status,
+                    senderName: row.sender_name,
+                    chatType: row.chat_type,
+                    deviceType: row.device_type,
+                }
+            ));
+
+            res.status(200).json({ messages: messages });
+
+        });
+
+
+
+        
 
     } catch (error) {
         console.log(error);
@@ -221,28 +225,36 @@ app.post('/api/messages/:id', async (req, res) => {
         const message = await client.sendMessage(req.body.receiver, req.body.message);
         //console.log(message);
 
-        await Chat.create({
-            sender: req.body.sender.replace("@c.us","") + '@c.us',
-            receiver: req.body.receiver.replace("@c.us","") + '@c.us',
-            message: req.body.message,
-            status: 0,
-            senderName: 'Me',
-            chatType: 'chat',
-            deviceType: 'android'
-            
+        let sql = `INSERT INTO chats(sender, receiver, message, status, sender_name, chat_type, device_type)
+            VALUES(?, ?, ?, ?, ?, ?, ?)
+        `;
 
+        DB.run(sql, [
+            req.body.sender.replace("@c.us","") + '@c.us',
+            req.body.receiver.replace("@c.us","") + '@c.us',
+            req.body.message,
+            0,
+            'Me',
+            'chat',
+            'android'
+        ], (err) => {
+            throw err;
         });
 
+        sql = `INSERT INTO messages(sender, receiver, message, status, sender_name, chat_type, device_type)
+            VALUES(?, ?, ?, ?, ?, ?, ?)
+        `;
 
-        const newMessage = await Message.create({
-            sender: req.body.sender.replace("@c.us","") + '@c.us',
-            receiver: req.body.receiver.replace("@c.us","") + '@c.us',
-            message: req.body.message,
-            status: 0,
-            senderName: 'Me',
-            chatType: 'chat',
-            deviceType: 'android'
-
+        DB.run(sql, [
+            req.body.sender.replace("@c.us","") + '@c.us',
+            req.body.receiver.replace("@c.us","") + '@c.us',
+            req.body.message,
+            0,
+            'Me',
+            'chat',
+            'android'
+        ], (err) => {
+            throw err;
         });
 
 
@@ -322,29 +334,43 @@ app.post('/api/upload/:id', async (req, res) => {
 
         //const mediaObject = MessageMedia.fromFilePath(sourceMediaFilename);
 
-        await Chat.create({
-            sender: req.body.sender.replace("@c.us","") + '@c.us',
-            receiver: req.body.receiver.replace("@c.us","") + '@c.us',
-            message: 'Image sent',
-            status: 0,
-            senderName: 'Me',
-            chatType: 'image',
-            deviceType: 'android'
-            
+       let sql = `INSERT INTO chats(sender, receiver, message, status, sender_name, chat_type, device_type)
+            VALUES(?, ?, ?, ?, ?, ?, ?)
+        `;
+
+        DB.run(sql, [
+            req.body.sender.replace("@c.us","") + '@c.us',
+            req.body.receiver.replace("@c.us","") + '@c.us',
+            'Image sent',
+            0,
+            'Me',
+            'image',
+            'android'
+        ], (err) => {
+            if(err)
+                throw err;
+
 
         });
 
+        sql = `INSERT INTO messages(sender, receiver, message, status, sender_name, chat_type, device_type)
+            VALUES(?, ?, ?, ?, ?, ?, ?)
+        `;
 
-        const newMessage = await Message.create({
-            sender: req.body.sender.replace("@c.us","") + '@c.us',
-            receiver: req.body.receiver.replace("@c.us","") + '@c.us',
-            message: 'Image sent',
-            status: 0,
-            senderName: 'Me',
-            chatType: 'image',
-            deviceType: 'android'
-
+        DB.run(sql, [
+            req.body.sender.replace("@c.us","") + '@c.us',
+            req.body.receiver.replace("@c.us","") + '@c.us',
+            'Image sent',
+            0,
+            'Me',
+            'image',
+            'android'
+        ], (err) => {
+            if(err)
+                throw err;
         });
+
+
 
         let fileExt = '.jpg';
 
@@ -565,7 +591,7 @@ client.on('message', async message => {
 
     // don't log broadcast messages
     if (message.from != 'status@broadcast') {
-        await Chat.deleteMany({ sender: message.from });
+        //await Chat.deleteMany({ sender: message.from });
 
         // if message from individual user, sender name will be his name
         // else if message from group chat, sender name will be group name
@@ -574,115 +600,116 @@ client.on('message', async message => {
             senderName = waChat.name;
         }
 
-        await Chat.create({
-            sender: message.from,
-            receiver: message.to,
-            message: msg,
-            status: 0,
-            senderName: senderName,
-            chatType: message.type,
-            deviceType: message.deviceType,
+        DB.run(`INSERT INTO chats(sender, receiver, message, status, sender_name, chat_type, device_type) 
+            VALUES(?, ?, ?, ?, ?, ?, ?)`,
+        [message.from, message.to, msg, 0, senderName, message.type, message.deviceType], (err)=> {
+            if(err)
+                console.log(err);
+
+
+            let newId;
+
+            DB.run(`INSERT INTO messages(sender, receiver, message, status, sender_name, chat_type, device_type) 
+                VALUES(?, ?, ?, ?, ?, ?, ?)`,
+            [message.from, message.to, msg, 0, senderName, message.type, message.deviceType], async function(err) {
+                if(err)
+                    console.log(err);
+
+                newId = this.lastID;
+
+
+                if (message.hasMedia) {
+                    const media = await message.downloadMedia();
+
+                    // Uncomment below code if you want to save the received Image, Audio or Video in MongoDB database instead of file system
+                    /*
+                    const image = await Image.create({
+                        mediaData: Buffer.from(media.data, "base64"),
+                        mediaFilename: media.filename,
+                        mediaMimetype: media.mimetype,
+                        mediaFilesize: media.filesize
+                    });
+                    */
+
+                    if(message.type == 'image'){
+                        // mediaMimetype: 'image/jpeg'
+                        // mediaMimetype: 'image/webp'
+
+                        const fileExt = '.jpg';
+
+                        if(media.mimetype == 'image/webp')
+                            fileExt = '.webp';
+
+                        const sourceMediaFilename = './media/' + newId + fileExt;
+                        fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'base64'));
+                    }
             
+                    else if(message.type == 'audio'){
+                        // mediaMimetype: 'audio/ogg; codecs=opus'
 
-        });
+                        const sourceMediaFilename = './media/' + newId + '.ogg';
+                        const targetMediaFilename = './media/' + newId + '.wav';
+            
+                        fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'base64'));
+            
+                        // Old Nokia phones cannot play audio with OGG format which is used by WhatsApp
+                        // So convert from OGG to WAV file format
 
+                        
+                        ffmpeg()
+                            .input(`${sourceMediaFilename}`)
+                            .audioCodec("libvorbis")
+                            .output(`${targetMediaFilename}`)
+                            .audioCodec("pcm_s16le")
+                            .on("end", async () => {
+                                console.log("Conversion finished");
+                            })
+                            .on("error", (err) => {
+                                console.error("Error:", err);
+                            })
+                            .run();
+                    }
+                    
+                    else if(message.type == 'video'){
+                        // mediaMimetype: 'video/mp4'
 
-        const newMessage = await Message.create({
-            sender: message.from,
-            receiver: message.to,
-            message: msg,
-            status: 0,
-            senderName: message._data.notifyName,
-            chatType: message.type,
-            deviceType: message.deviceType
+                        const sourceMediaFilename = './media/' + newId + '.mp4';
+                        fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'base64'));
 
-        });
+                        const targetMediaFilename = './media/' + newId + '.3gp';
 
-        if (message.hasMedia) {
-            const media = await message.downloadMedia();
+                        // Some old Nokia phones cannot play Video in MP4 format which is used by WhatsApp
+                        // So convery from MP4 to 3GP file format 
 
-            // Uncomment below code if you want to save the received Image, Audio or Video in MongoDB database instead of file system
-            /*
-            const image = await Image.create({
-                mediaData: Buffer.from(media.data, "base64"),
-                mediaFilename: media.filename,
-                mediaMimetype: media.mimetype,
-                mediaFilesize: media.filesize
+                        ffmpeg()
+                            .input(`${sourceMediaFilename}`)
+                            .outputOptions([
+                            '-s 352x288',
+                            '-acodec aac',
+                            '-strict experimental',
+                            '-ac 1',
+                            '-ar 8000',
+                            '-ab 24k'
+                            ])
+                            .output(`${targetMediaFilename}`)
+                            .on("end", async () => {
+                            console.log("Conversion finished");
+                            })
+                            .on("error", (err) => {
+                            console.error("Error:", err);
+                            })
+                            .run();
+                    }
+                    
+                    
+                }
+
             });
-            */
+        });
 
-            if(message.type == 'image'){
-                // mediaMimetype: 'image/jpeg'
-                // mediaMimetype: 'image/webp'
 
-                const fileExt = '.jpg';
 
-                if(media.mimetype == 'image/webp')
-                    fileExt = '.webp';
 
-                const sourceMediaFilename = './media/' + newMessage._id + fileExt;
-                fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'base64'));
-            }
-    
-            else if(message.type == 'audio'){
-                // mediaMimetype: 'audio/ogg; codecs=opus'
-
-                const sourceMediaFilename = './media/' + newMessage._id + '.ogg';
-                const targetMediaFilename = './media/' + newMessage._id + '.wav';
-    
-                fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'base64'));
-    
-                // Old Nokia phones cannot play audio with OGG format which is used by WhatsApp
-                // So convert from OGG to WAV file format
-
-                
-                ffmpeg()
-                    .input(`${sourceMediaFilename}`)
-                    .audioCodec("libvorbis")
-                    .output(`${targetMediaFilename}`)
-                    .audioCodec("pcm_s16le")
-                    .on("end", async () => {
-                        console.log("Conversion finished");
-                    })
-                    .on("error", (err) => {
-                        console.error("Error:", err);
-                    })
-                    .run();
-            }
-            
-            else if(message.type == 'video'){
-                // mediaMimetype: 'video/mp4'
-
-                const sourceMediaFilename = './media/' + newMessage._id + '.mp4';
-                fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'base64'));
-
-                const targetMediaFilename = './media/' + newMessage._id + '.3gp';
-
-                // Some old Nokia phones cannot play Video in MP4 format which is used by WhatsApp
-                // So convery from MP4 to 3GP file format 
-
-                ffmpeg()
-                    .input(`${sourceMediaFilename}`)
-                    .outputOptions([
-                      '-s 352x288',
-                      '-acodec aac',
-                      '-strict experimental',
-                      '-ac 1',
-                      '-ar 8000',
-                      '-ab 24k'
-                    ])
-                    .output(`${targetMediaFilename}`)
-                    .on("end", async () => {
-                      console.log("Conversion finished");
-                    })
-                    .on("error", (err) => {
-                      console.error("Error:", err);
-                    })
-                    .run();
-            }
-            
-            
-        }
 
 
 
