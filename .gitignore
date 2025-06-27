@@ -4,9 +4,6 @@ npm-debug.log
 .env
 .DS_Store
 
-# The below folder will contain the images, audi and video files uploaded by clients
-media
-
 # The below 2 folders are created once we login to the client and authentication strategy is LocalAuth
 .wwebjs_auth
 .wwebjs_cache

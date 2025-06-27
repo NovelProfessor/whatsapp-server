@@ -166,7 +166,7 @@ app.get('/api/messages/:receiver/:sender', async (req, res) => {
         if(client == undefined)
             return res.status(401).json({error: "User session not found"});
 
-        let sql = `SELECT * FROM messages where (receiver = ? and sender = ?) or (receiver = ? and sender = ?)`;
+        let sql = `SELECT * FROM messages where receiver in (?,?) and sender in (?,?)`;
         const rows = await db.all(sql, [receiver, sender, sender, receiver]);
         let messages = rows.map(row => (
                 {
@@ -214,7 +214,7 @@ app.post('/api/messages/:id', async (req, res) => {
             VALUES(?, ?, ?, ?, ?, ?, ?)
         `;
 
-        const result = await db.run(sql, [
+        await db.run(sql, [
             req.body.sender.replace("@c.us","") + '@c.us',
             req.body.receiver.replace("@c.us","") + '@c.us',
             req.body.message,
@@ -228,7 +228,7 @@ app.post('/api/messages/:id', async (req, res) => {
             VALUES(?, ?, ?, ?, ?, ?, ?)
         `;
 
-        const result2 = await db.run(sql, [
+        await db.run(sql, [
             req.body.sender.replace("@c.us","") + '@c.us',
             req.body.receiver.replace("@c.us","") + '@c.us',
             req.body.message,
@@ -319,7 +319,7 @@ app.post('/api/upload/:id', async (req, res) => {
             VALUES(?, ?, ?, ?, ?, ?, ?)
         `;
 
-        const result = await db.run(sql, [
+        await db.run(sql, [
             req.body.sender.replace("@c.us","") + '@c.us',
             req.body.receiver.replace("@c.us","") + '@c.us',
             'Image sent',
@@ -333,7 +333,7 @@ app.post('/api/upload/:id', async (req, res) => {
             VALUES(?, ?, ?, ?, ?, ?, ?)
         `;
 
-        const result2 = await db.run(sql, [
+        const result = await db.run(sql, [
             req.body.sender.replace("@c.us","") + '@c.us',
             req.body.receiver.replace("@c.us","") + '@c.us',
             'Image sent',
@@ -343,14 +343,14 @@ app.post('/api/upload/:id', async (req, res) => {
             'android'
         ]);
 
-
+        let newId = result.lastID;
 
         let fileExt = '.jpg';
 
         if(media.mimetype == 'audio/wav')
             fileExt = '.wav';
 
-        const sourceMediaFilename = './media/' + newMessage._id + fileExt;
+        const sourceMediaFilename = './media/' + newId + fileExt;
         fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'ascii'));
 
         ////const mediaObject = MessageMedia.fromFilePath(sourceMediaFilename);
@@ -559,18 +559,19 @@ client.on('message', async message => {
             senderName = waChat.name;
         }
 
-        const result = 
-            await db.run(`INSERT INTO chats(sender, receiver, message, status, sender_name, chat_type, device_type) 
+        await db.run(`DELETE FROM chats where sender = ?`, [message.from]);
+
+        await db.run(`INSERT INTO chats(sender, receiver, message, status, sender_name, chat_type, device_type) 
             VALUES(?, ?, ?, ?, ?, ?, ?)`,
             [message.from, message.to, msg, 0, senderName, message.type, message.deviceType]);
 
 
-        const result2 = 
+        const result = 
             await db.run(`INSERT INTO messages(sender, receiver, message, status, sender_name, chat_type, device_type) 
             VALUES(?, ?, ?, ?, ?, ?, ?)`,
             [message.from, message.to, msg, 0, senderName, message.type, message.deviceType]);
 
-        const newId = result2.lastID;
+        const newId = result.lastID;
 
 
         if (message.hasMedia) {
