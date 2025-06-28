@@ -18,7 +18,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 // FFMPEG library is used to convert WhatsApp audio and video to a format that is compatible with old Nokia phones
 
-import ffmpegPath from '@ffmpeg-installer/ffmpeg';
+import ffmpeg1 from '@ffmpeg-installer/ffmpeg';
+const ffmpegPath = ffmpeg1.path;
 
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
@@ -81,7 +82,7 @@ app.get('/api/chats/:receiver', async (req, res) => {
         if(client == undefined)
             return res.status(401).json({error: "User session not found"});
 
-        const rows = await db.all(`SELECT * from chats WHERE receiver = ? LIMIT ?`, [receiver, pageSize]);
+        const rows = await db.all(`SELECT * from chats WHERE receiver = ? ORDER BY timestamp DESC LIMIT 20`, [receiver]);
         let chats = rows.map((row) => ({
                 _id: row._id,
                 sender: row.sender,
@@ -166,7 +167,7 @@ app.get('/api/messages/:receiver/:sender', async (req, res) => {
         if(client == undefined)
             return res.status(401).json({error: "User session not found"});
 
-        let sql = `SELECT * FROM messages where receiver in (?,?) and sender in (?,?)`;
+        let sql = `SELECT * FROM messages where receiver in (?,?) and sender in (?,?) ORDER BY timestamp DESC LIMIT 20`;
         const rows = await db.all(sql, [receiver, sender, sender, receiver]);
         let messages = rows.map(row => (
                 {
@@ -214,14 +215,15 @@ app.post('/api/messages/:id', async (req, res) => {
             VALUES(?, ?, ?, ?, ?, ?, ?)
         `;
 
+
         await db.run(sql, [
             req.body.sender.replace("@c.us","") + '@c.us',
             req.body.receiver.replace("@c.us","") + '@c.us',
             req.body.message,
             0,
-            'Me',
+            client.info.pushname,
             'chat',
-            'android'
+            client.info.platform
         ]);
 
         sql = `INSERT INTO messages(sender, receiver, message, status, sender_name, chat_type, device_type)
@@ -233,15 +235,16 @@ app.post('/api/messages/:id', async (req, res) => {
             req.body.receiver.replace("@c.us","") + '@c.us',
             req.body.message,
             0,
-            'Me',
+            client.info.pushname,
             'chat',
-            'android'
+            client.info.platform
         ]);
 
 
         res.status(200).json({ message: 'message sent successfully' });
 
     } catch (error) {
+        
         var errorMessage = error.message.split(/\r?\n|\r|\n/g);
         var errorMessageLine1 = errorMessage[0];
         console.log(errorMessageLine1);
@@ -490,7 +493,31 @@ client.on('ready', () => {
         });
     */
 
+    //startKeepAlive(client.info.wid.user); // Start the keep-alive mechanism here
+
 });
+
+// Keep-alive mechanism: Simulate typing
+async function startKeepAlive(user) {
+    const keepAliveInterval = 1 * 60 * 1000; // 1 minute ( change it and tell us what is the best use for that)
+
+    setInterval(async () => {
+
+        try {
+            console.log('Simulating typing activity...');
+            const chat = await client.getChatById(user); // Or a test chat
+            if (chat) {
+                await chat.sendStateTyping();
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate for 2 seconds
+                await chat.clearState();
+                console.log('Typing activity simulated.');
+            }
+        } catch (error) {
+            console.error('Error simulating typing:', error.message);
+        }
+
+    }, keepAliveInterval);
+}
 
 client.on('qr', qr => {
     // Uncomment the below code for printing QR code on server side
@@ -506,7 +533,6 @@ client.on('qr', qr => {
     // ws.send(JSON.stringify(msg));
 
 });
-
 
 
 // Emitted when a new message is received from other users.
@@ -547,6 +573,8 @@ client.on('message', async message => {
         msg = message.body;
     else
         msg = `${message.type} received`;
+
+    console.log(`Message: ${msg}`);
 
     // don't log broadcast messages
     if (message.from != 'status@broadcast') {
