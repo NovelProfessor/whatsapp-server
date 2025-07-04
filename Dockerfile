@@ -26,4 +26,10 @@ COPY . .
 
 RUN npm ci
 
+RUN mkdir /data
+RUN mkdir /media
+
+VOLUME /data
+VOLUME /media
+
 ENTRYPOINT ["node", "server.js"]

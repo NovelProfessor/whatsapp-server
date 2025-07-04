@@ -25,12 +25,31 @@ import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 ffmpeg.setFfmpegPath(ffmpegPath);
 
+
 // Use the express-fileupload middleware
 app.use(fileUpload());
 
 import {db} from './connect.js';
 
 
+// create media folder if it doesn't exist
+const mediaPath = `${__dirname}/media`;
+
+try {
+
+    if (!fs.existsSync(mediaPath)) {
+        fs.mkdirSync(mediaPath);
+        console.log(`Folder '${mediaPath}' created successfully.`);
+    } else {
+        console.log(`Folder '${mediaPath}' already exists.`);
+    }
+
+} catch (err) {
+    console.log('Error creating media folder:', err);
+    process.exit(1);
+}
+
+// start the express web server
 app.listen(port, () => {
     console.log(`Server started on port ${port}`);
 });
@@ -198,7 +217,7 @@ app.get('/api/messages/:receiver/:sender', async (req, res) => {
 
 
 
-app.post('/api/messages/:id', async (req, res) => {
+app.post(['/api/messages','/api/messages/:id'], async (req, res) => {
     try {
 
         const client = sg.getSocketById(req.body.sender.replace("@c.us","")); //sender is mobile number
@@ -254,15 +273,15 @@ app.post('/api/messages/:id', async (req, res) => {
 });
 
 
-app.post('/api/upload/:id', async (req, res) => {
+app.post(['/api/upload','/api/upload/:id'], async (req, res) => {
     try {
-        var id = req.params.id;
+        //var id = req.params.id;
 
         // The below string needs to be removed from the URL query string
         // It is added by the J2ME client to force BlackBerry device to use WiFi.
 
-        const regex = /;interface=wifi/i;
-        id = id.replace(regex, "");
+        //const regex = /;interface=wifi/i;
+        //id = id.replace(regex, "");
 
         console.log(req.files);
         console.log(`receiver = ${req.body.receiver}`);
@@ -410,7 +429,12 @@ const client = new Client({
         ]
       },
     //authStrategy: new LocalAuth({ clientId: uuid })
-    authStrategy: new LocalAuth({ clientId: 'local-server' })
+    authStrategy: new LocalAuth(
+        { 
+            clientId: 'local-server',
+            dataPath: './data' 
+        }
+    )
 });
 
 

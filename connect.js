@@ -1,10 +1,31 @@
 import sqlite3 from 'sqlite3';
 import {open} from 'sqlite';
 
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import fs from 'fs';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// create data folder if it doesn't exist
+const dataPath = `${__dirname}/data`;
+
+try {
+    if (!fs.existsSync(dataPath)) {
+        fs.mkdirSync(dataPath);
+        console.log(`Folder '${dataPath}' created successfully.`);
+    } else {
+        console.log(`Folder '${dataPath}' already exists.`);
+    }
+
+} catch (err) {
+    console.log('Error creating data folder:', err);
+    process.exit(1);
+}
 
 const db = await open({
-    filename: './mydata.db',
+    filename: './data/mydata.db',
     driver: sqlite3.Database
 });
 console.log(`connected to database.`)
