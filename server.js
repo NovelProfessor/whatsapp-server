@@ -208,7 +208,7 @@ app.get('/api/messages/:receiver/:sender', async (req, res) => {
 
 
 
-app.post('/api/messages/:id', async (req, res) => {
+app.post(['/api/messages/:id','/api/messages'], async (req, res) => {
     try {
 
         const client = sg.getSocketById(req.body.sender.replace("@c.us","")); //sender is mobile number
@@ -258,15 +258,15 @@ app.post('/api/messages/:id', async (req, res) => {
 });
 
 
-app.post('/api/upload/:id', async (req, res) => {
+app.post(['/api/upload/:id','/api/upload'], async (req, res) => {
     try {
-        var id = req.params.id;
+        //var id = req.params.id;
 
         // The below string needs to be removed from the URL query string
         // It is added by the J2ME client to force BlackBerry device to use WiFi.
 
-        const regex = /;interface=wifi/i;
-        id = id.replace(regex, "");
+        //const regex = /;interface=wifi/i;
+        //id = id.replace(regex, "");
 
         console.log(req.files);
         console.log(`receiver = ${req.body.receiver}`);
