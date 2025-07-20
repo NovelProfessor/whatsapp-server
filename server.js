@@ -121,6 +121,51 @@ app.get('/api/chats/:receiver', async (req, res) => {
     }
 });
 
+app.get('/api/contacts/:user', async(req, res) => {
+
+    try {
+        var mobileNumber = req.params.user;
+        const regex = /;interface=wifi/i;
+        mobileNumber = mobileNumber.replace(regex, "");
+
+        const client = sg.getSocketById(mobileNumber); //user is mobile number
+        if(client == undefined)
+            return res.status(401).json({error: "User session not found"});
+
+        var contacts = await client.getContacts();
+
+        var filteredContacts =  contacts.filter(item => {
+            return item.isWAContact == true && item.id.server != "lid" && item.isBusiness != true;
+        });
+
+        const compactContactsList = filteredContacts.map(item => {
+            const container = {};
+
+            container.server = item.id.server;
+            container.user = item.id.user;
+            container.isGroup = item.isGroup;
+
+            if(item.name !== undefined)
+                container.name = item.name;
+
+            else if(item.pushname !== undefined)
+                container.name = item.pushname;
+
+            else
+                container.name = item.id.user;
+
+            return container;
+        })
+
+        res.status(200).json({contacts: compactContactsList});
+
+    } catch (error){
+        console.log(error);
+        res.status(500).json({error: error.message});
+    }
+
+});
+
 // The below endpoint is called by the J2ME WhatsApp client to login to the app
 // :user is a path variable which will contain the mobile number of the user who is logging in
 // The string ';interface=wifi' gets added to the URL just to force BlackBerry (OS 6 and 7) devices to use WiFi
