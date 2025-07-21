@@ -128,7 +128,7 @@ app.get('/api/contacts/:user', async(req, res) => {
         const regex = /;interface=wifi/i;
         mobileNumber = mobileNumber.replace(regex, "");
 
-        const client = sg.getSocketById(mobileNumber); //user is mobile number
+        const client = sg.getSocketById(mobileNumber.replace("@c.us","")); //user is mobile number
         if(client == undefined)
             return res.status(401).json({error: "User session not found"});
 
@@ -141,9 +141,7 @@ app.get('/api/contacts/:user', async(req, res) => {
         const compactContactsList = filteredContacts.map(item => {
             const container = {};
 
-            container.server = item.id.server;
-            container.user = item.id.user;
-            container.isGroup = item.isGroup;
+            container.id = item.id._serialized;
 
             if(item.name !== undefined)
                 container.name = item.name;
