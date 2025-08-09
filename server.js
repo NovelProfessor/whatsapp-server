@@ -338,33 +338,12 @@ app.post(['/api/upload/:id','/api/upload'], async (req, res) => {
 
         */
         
-        
-
-        // We have both options, either send image to WhatsApp directly from the bytes received in the request
-        // or from the file we saved in the filesystem from above statement
-        // Here I am choosing to send from bytes received and commented out the lines for sending from file system
-
-        const mediaObject = new MessageMedia(media.mimetype, Buffer.from(media.data,'binary').toString('base64'));
-
-        
         const client = sg.getSocketById(req.body.sender.replace("@c.us","")); //sender is mobile number
         if(client == undefined)
             return res.status(401).json({statusCode: '002', statusDesc: 'User session not found'});
 
         console.log(`retrieved user from socket list: ${client.info.wid.user}`);
 
-        await client.sendMessage(req.body.receiver, mediaObject);
-
-        // Move the uploaded image / video or audio file to our media folder
-        // const sourceMediaFilename = './media/' + media.name;
-        // media.mv(sourceMediaFilename);
-
-        // We can use the above media.mv async method provided by express file-upload module or NodeJS built-in writeFileSync.
-        // I prefer to use writeFileSync because I need to wait for file copy to be complete before performing next action
-
-        // fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'ascii'));
-
-        //const mediaObject = MessageMedia.fromFilePath(sourceMediaFilename);
 
         await Chat.create({
             sender: req.body.sender.replace("@c.us","") + '@c.us',
@@ -391,17 +370,49 @@ app.post(['/api/upload/:id','/api/upload'], async (req, res) => {
         });
 
         let fileExt = '.jpg';
+        let fileExtTarget = '.jpg';
 
-        if(media.mimetype == 'audio/wav')
-            fileExt = '.wav';
+        if(media.mimetype == 'audio/mpeg'){
+            fileExt = '.mp3';
+            fileExtTarget = '.ogg';
+        }
 
         const sourceMediaFilename = './media/' + newMessage._id + fileExt;
-        fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'ascii'));
 
-        ////const mediaObject = MessageMedia.fromFilePath(sourceMediaFilename);
-        ////await client.sendMessage(req.body.receiver, mediaObject);
+        fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'binary'));
 
-        res.status(200).json({statusCode: '000', statusDesc: 'media uploaded successfully'});
+        const targetMediaFilename = './media/' + newMessage._id + fileExtTarget;
+
+        if(media.mimetype == 'audio/mpeg'){
+            ffmpeg()
+                .input(`${sourceMediaFilename}`)
+                .outputOptions([
+                '-c:a libopus',
+                '-b:a 128k'
+                ])
+                .output(`${targetMediaFilename}`)
+                .on("end", async () => {
+                    console.log("Conversion finished");
+                    const mediaObject = MessageMedia.fromFilePath (targetMediaFilename);
+
+                    //mediaObject = new MessageMedia(media.mimetype, Buffer.from(media.data,'binary').toString('base64'));
+                    await client.sendMessage(req.body.receiver, mediaObject);
+                    res.status(200).json({statusCode: '000', statusDesc: 'media uploaded successfully'});
+                })
+                .on("error", (err) => {
+                    console.error("Error:", err);
+                    res.status(500).json({statusCode: '003', statusDesc: err.message});
+                })
+                .run();
+        }
+        else {
+            const mediaObject = MessageMedia.fromFilePath (targetMediaFilename);
+
+            //mediaObject = new MessageMedia(media.mimetype, Buffer.from(media.data,'binary').toString('base64'));
+            await client.sendMessage(req.body.receiver, mediaObject);
+            res.status(200).json({statusCode: '000', statusDesc: 'media uploaded successfully'});
+        }
+
 
     } catch (error){
         console.log(error);
