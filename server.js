@@ -14,6 +14,7 @@ import express from 'express';
 const app = express();
 const port = process.env.PORT || 80;
 import fileUpload from 'express-fileupload';
+import { WebSocketServer } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 
 // FFMPEG library is used to convert WhatsApp audio and video to a format that is compatible with old Nokia phones
@@ -54,7 +55,7 @@ app.listen(port, () => {
     console.log(`Server started on port ${port}`);
 });
 
-// const sockserver = new WebSocketServer({ port: 443 });
+const sockserver = new WebSocketServer({ port: 443 });
 
 app.use(express.json());
 
@@ -457,10 +458,10 @@ app.use('/', (req, res) => {
     res.sendFile('/index.html', { root: __dirname });
 });
 
-//sockserver.on('connection', (ws, req) => {
-//    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+sockserver.on('connection', (ws, req) => {
+   const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-//    console.log(`New client connected from ${clientIp}`);
+   console.log(`New client connected from ${clientIp}`);
     
     //ws.send('connection established')
 
@@ -485,7 +486,7 @@ const client = new Client({
     //authStrategy: new LocalAuth({ clientId: uuid })
     authStrategy: new LocalAuth(
         { 
-            clientId: 'local-server',
+            clientId: uuid,
             dataPath: './data' 
         }
     )
@@ -542,7 +543,8 @@ client.on('ready', () => {
         user: client.info.wid.user, 
         platform: client.info.platform
     };
-    // ws.send(JSON.stringify(msg));
+    ws.send(JSON.stringify(msg));
+
     console.log('Login successful for [' 
           + msg.pushname + '] from [' + msg.user + '] using [' + msg.platform + ']');
 
@@ -602,13 +604,13 @@ client.on('qr', qr => {
     qrcode.generate(qr, { small: true });
     
     // Below code for printing QR code on client side
-    // const msg = {
-    //     type: "barcode",
-    //     barcode: qr
-    // };
+    const msg = {
+        type: "barcode",
+        barcode: qr
+    };
 
     // Return generated QR code to the webpage (login.html) thru web sockets
-    // ws.send(JSON.stringify(msg));
+    ws.send(JSON.stringify(msg));
 
 });
 
@@ -776,14 +778,14 @@ client.initialize();
 
 // END WhatsApp client code ===========================================================================
 
-    // ws.on('close', () => console.log('Client has disconnected!'))
-    // ws.on('message', data => {
-    //     sockserver.clients.forEach(client => {
-    //         //console.log(`distributing message: ${data}`)
-    //         //client.send(`${data}`)
-    //     })
-    // })
-    // ws.onerror = function () {
-    //     console.log('websocket error')
-    // }
-//});   // end socket server
+    ws.on('close', () => console.log('Client has disconnected!'))
+    ws.on('message', data => {
+        sockserver.clients.forEach(client => {
+            //console.log(`distributing message: ${data}`)
+            //client.send(`${data}`)
+        })
+    })
+    ws.onerror = function () {
+        console.log('websocket error')
+    }
+});   // end socket server
