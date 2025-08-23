@@ -61,47 +61,6 @@ const sockserver = new WebSocketServer({ port: 443 });
 app.use(express.json());
 
 
-app.get('/users6863', async (req,res) =>{
-        
-    // Get the total memory of the system in bytes
-    const totalMemory = os.totalmem();
-    // Get the free memory of the system in bytes
-    const freeMemory = os.freemem();
-    // Convert bytes to megabytes for better readability
-    const totalMemoryMB = (totalMemory / 1024 / 1024).toFixed(2);
-    const freeMemoryMB = (freeMemory / 1024 / 1024).toFixed(2);
-    // Reference to ClientInfo object:
-    // https://docs.wwebjs.dev/ClientInfo.html
-    let html = "<style>table, th, td {border: 1px solid black; border-collapse: collapse;}</style>";
-    html+="<table>";
-    html+= "<tr><td>User</td><td>Platform</td><td>Mobile</td></tr>";
-    const clients = sg.getSocketList();
-    let userCount = 0;
-    for (var userId in clients){
-        userCount++;
-        const client = sg.getSocketById(userId); //userId is mobile number
-        console.log(`retrieved user from socket list: ${client.info.pushname}`);
-        html+="<tr>"
-        html+="<td>" + client.info.pushname + "</td>"
-        html+="<td>" + client.info.platform + "</td>"
-        let mobile = client.info.wid.user;
-        //html+="<td>" + mobile.substr(0,3) + "xxxx" + mobile.substr(mobile.length - 3) + "</td>"
-        html+="<td>" + mobile + "</td>"
-        html+="</tr>"
-    };
-    
-    html+="</table>";
-    html+="<br><br>Total users online: " + userCount + "<br><br>";
-    html+="<table>";
-    html+= "<tr><td>Total Memory</td><td>Free Memory</td></tr>";
-    html+="<tr>";
-    html+="<td>" + totalMemoryMB + " MB</td>";
-    html+="<td>" + freeMemoryMB + " MB</td>";
-    html+="</tr>";
-    html+="</table>";
-    res.send(html);
-});
-
 // The below endpoint is only used by my website to allow users to download my WhatsApp application
 // It is not used by the J2ME WhatsApp client
 
