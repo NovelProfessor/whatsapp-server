@@ -1,47 +1,65 @@
-var sg = require("./singleton.js");
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
-const express = require('express');
+import os from 'os';
+import {sg} from './singleton.js';
+
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+import Whatsapp from 'whatsapp-web.js'
+const { Client, LocalAuth, MessageMedia } = Whatsapp
+
+import qrcode from 'qrcode-terminal';
+import express from 'express';
 const app = express();
 const port = process.env.PORT || 80;
-const fileUpload = require('express-fileupload');
-const mongoose = require('mongoose');
-const { WebSocketServer, CLOSING } = require('ws');
-const { v4: uuidv4 } = require("uuid");
+import fileUpload from 'express-fileupload';
+import { WebSocketServer } from 'ws';
+import { v4 as uuidv4 } from 'uuid';
 
 // FFMPEG library is used to convert WhatsApp audio and video to a format that is compatible with old Nokia phones
-const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
-var ffmpeg = require('fluent-ffmpeg'), fs = require('fs');
+
+import ffmpeg1 from '@ffmpeg-installer/ffmpeg';
+const ffmpegPath = ffmpeg1.path;
+
+import ffmpeg from 'fluent-ffmpeg';
+import fs from 'fs';
 ffmpeg.setFfmpegPath(ffmpegPath);
+
 
 // Use the express-fileupload middleware
 app.use(fileUpload());
 
-const Message = require('./models/message.model.js');
-const Chat = require('./models/chat.model.js');
-const User = require('./models/user.model.js');
-const Image = require('./models/image.model.js');
-const { execPath } = require("process");
+import {db} from './connect.js';
 
 
+// create media folder if it doesn't exist
+const mediaPath = `${__dirname}/media`;
+
+try {
+
+    if (!fs.existsSync(mediaPath)) {
+        fs.mkdirSync(mediaPath);
+        console.log(`Folder '${mediaPath}' created successfully.`);
+    } else {
+        console.log(`Folder '${mediaPath}' already exists.`);
+    }
+
+} catch (err) {
+    console.log('Error creating media folder:', err);
+    process.exit(1);
+}
+
+// start the express web server
 app.listen(port, () => {
     console.log(`Server started on port ${port}`);
 });
 
 const sockserver = new WebSocketServer({ port: 443 });
 
-
-mongoose.connect('mongodb://127.0.0.1:27017/messagedb')
-    .then(() => {
-        console.log('Connected to database');
-        console.log('Now open "http://localhost/login" in your browser to login to WhatsApp');
-
-    })
-    .catch(() => {
-        console.log('Error connecting to database')
-    });
-
 app.use(express.json());
+
 
 // The below endpoint is only used by my website to allow users to download my WhatsApp application
 // It is not used by the J2ME WhatsApp client
@@ -86,41 +104,25 @@ app.get('/api/chats/:receiver', async (req, res) => {
         if(client == undefined)
             return res.status(401).json({error: "User session not found"});
 
+        const rows = await db.all(`SELECT * from chats WHERE receiver = ? ORDER BY timestamp DESC LIMIT 20`, [receiver]);
+        let chats = rows.map((row) => ({
+                _id: row._id,
+                sender: row.sender,
+                senderName: row.sender_name,
+                message: row.message,
+                status: row.status,
+                createdAt: row.timestamp,
+                updatedAt: row.timestamp
+            }));
 
-        const chats = await Chat.find({ receiver: receiver })
-            .select('sender senderName message createdAt updatedAt status')
-            .sort({ createdAt: -1 })
-            .limit(pageSize)
-            .skip(pageSize * page);
+        res.status(200).json({chats: chats});
 
-
-            Chat.updateMany({ receiver: receiver }, {
-                $set:
-                {
-                    status: 1
-                }
-            }, { upsert: false })
-                .then(result => {
-                    //console.log('Update result:', result);
-                    if (result.modifiedCount > 0) {
-                        //console.log('Message updated successfully');
-                    } else {
-                        //console.log('Message not found');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error updating Message:', error);
-                });
-
-
-        res.status(200).json({ chats: chats });
 
     } catch (error) {
         console.log(error);
         res.status(500).json({ error: error.message });
     }
 });
-
 
 app.get('/api/contacts/:user', async(req, res) => {
 
@@ -230,17 +232,26 @@ app.get('/api/messages/:receiver/:sender', async (req, res) => {
         if(client == undefined)
             return res.status(401).json({error: "User session not found"});
 
-        const messages = await Message.find({
-            $or: [
-                { receiver: receiver, sender: sender },
-                { receiver: sender, sender: receiver }
-            ]
-        })
-            .sort({ createdAt: -1 })
-            .limit(pageSize)
-            .skip(pageSize * page);
+        let sql = `SELECT * FROM messages where receiver in (?,?) and sender in (?,?) ORDER BY timestamp DESC LIMIT 20`;
+        const rows = await db.all(sql, [receiver, sender, sender, receiver]);
+        let messages = rows.map(row => (
+                {
+                    _id: row._id,
+                    sender: row.sender,
+                    receiver: row.receiver,
+                    message: row.message,
+                    status: row.status,
+                    senderName: row.sender_name,
+                    chatType: row.chat_type,
+                    deviceType: row.device_type,
+                    createdAt: row.timestamp,
+                    updatedAt: row.timestamp
+                }
+            ));
 
         res.status(200).json({ messages: messages });
+
+
 
     } catch (error) {
         console.log(error);
@@ -252,7 +263,7 @@ app.get('/api/messages/:receiver/:sender', async (req, res) => {
 
 
 
-app.post(['/api/messages/:id','/api/messages'], async (req, res) => {
+app.post(['/api/messages','/api/messages/:id'], async (req, res) => {
     try {
 
         const client = sg.getSocketById(req.body.sender.replace("@c.us","")); //sender is mobile number
@@ -265,34 +276,40 @@ app.post(['/api/messages/:id','/api/messages'], async (req, res) => {
         const message = await client.sendMessage(req.body.receiver, req.body.message);
         //console.log(message);
 
-        await Chat.create({
-            sender: req.body.sender.replace("@c.us","") + '@c.us',
-            receiver: req.body.receiver.replace("@c.us","") + '@c.us',
-            message: req.body.message,
-            status: 0,
-            senderName: 'Me',
-            chatType: 'chat',
-            deviceType: 'android'
-            
-
-        });
+        let sql = `INSERT INTO chats(sender, receiver, message, status, sender_name, chat_type, device_type)
+            VALUES(?, ?, ?, ?, ?, ?, ?)
+        `;
 
 
-        const newMessage = await Message.create({
-            sender: req.body.sender.replace("@c.us","") + '@c.us',
-            receiver: req.body.receiver.replace("@c.us","") + '@c.us',
-            message: req.body.message,
-            status: 0,
-            senderName: 'Me',
-            chatType: 'chat',
-            deviceType: 'android'
+        await db.run(sql, [
+            req.body.sender.replace("@c.us","") + '@c.us',
+            req.body.receiver.replace("@c.us","") + '@c.us',
+            req.body.message,
+            0,
+            client.info.pushname,
+            'chat',
+            client.info.platform
+        ]);
 
-        });
+        sql = `INSERT INTO messages(sender, receiver, message, status, sender_name, chat_type, device_type)
+            VALUES(?, ?, ?, ?, ?, ?, ?)
+        `;
+
+        await db.run(sql, [
+            req.body.sender.replace("@c.us","") + '@c.us',
+            req.body.receiver.replace("@c.us","") + '@c.us',
+            req.body.message,
+            0,
+            client.info.pushname,
+            'chat',
+            client.info.platform
+        ]);
 
 
         res.status(200).json({ message: 'message sent successfully' });
 
     } catch (error) {
+        
         var errorMessage = error.message.split(/\r?\n|\r|\n/g);
         var errorMessageLine1 = errorMessage[0];
         console.log(errorMessageLine1);
@@ -344,46 +361,71 @@ app.post(['/api/upload/:id','/api/upload'], async (req, res) => {
 
         console.log(`retrieved user from socket list: ${client.info.wid.user}`);
 
-
-        await Chat.create({
-            sender: req.body.sender.replace("@c.us","") + '@c.us',
-            receiver: req.body.receiver.replace("@c.us","") + '@c.us',
-            message: 'Image sent',
-            status: 0,
-            senderName: 'Me',
-            chatType: 'image',
-            deviceType: 'android'
-            
-
-        });
-
-
-        const newMessage = await Message.create({
-            sender: req.body.sender.replace("@c.us","") + '@c.us',
-            receiver: req.body.receiver.replace("@c.us","") + '@c.us',
-            message: 'Image sent',
-            status: 0,
-            senderName: 'Me',
-            chatType: 'image',
-            deviceType: 'android'
-
-        });
-
-        let fileExt = '.jpg';
-        let fileExtTarget = '.jpg';
+        let fileExt;
+        let fileExtTarget;
+        let msg;
+        let chatType;
 
         if(media.mimetype == 'audio/mpeg'){
             fileExt = '.mp3';
             fileExtTarget = '.ogg';
+            msg = 'Audio sent';
+            chatType = 'audio'
+        }
+        else if(media.mimetype == 'video/mp4'){
+            fileExt = '.mp4';
+            fileExtTarget = '.mp4';
+            msg = 'Video sent';
+            chatType = 'video'
+        }
+        else if(media.mimetype == 'image/jpeg'){
+            fileExt = '.jpg';
+            fileExtTarget = '.jpg';
+            msg = 'Image sent';
+            chatType = 'image'
         }
 
-        const sourceMediaFilename = './media/' + newMessage._id + fileExt;
+        console.log(`Message: ${msg}`);
+
+        let sql = `INSERT INTO chats(sender, receiver, message, status, sender_name, chat_type, device_type)
+            VALUES(?, ?, ?, ?, ?, ?, ?)
+        `;
+
+        await db.run(sql, [
+            req.body.sender.replace("@c.us","") + '@c.us',
+            req.body.receiver.replace("@c.us","") + '@c.us',
+            msg,
+            0,
+            'Me',
+            chatType,
+            'android'
+        ]);
+
+        sql = `INSERT INTO messages(sender, receiver, message, status, sender_name, chat_type, device_type)
+            VALUES(?, ?, ?, ?, ?, ?, ?)
+        `;
+
+        const result = await db.run(sql, [
+            req.body.sender.replace("@c.us","") + '@c.us',
+            req.body.receiver.replace("@c.us","") + '@c.us',
+            msg,
+            0,
+            'Me',
+            chatType,
+            'android'
+        ]);
+
+        let newId = result.lastID;
+
+        const sourceMediaFilename = './media/' + newId + fileExt;
 
         fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'binary'));
 
-        const targetMediaFilename = './media/' + newMessage._id + fileExtTarget;
+        const targetMediaFilename = './media/' + newId + fileExtTarget;
 
         if(media.mimetype == 'audio/mpeg'){
+            // convert mp3 audio file to "audio/ogg; codecs=opus" format which works with WhatsApp
+
             ffmpeg()
                 .input(`${sourceMediaFilename}`)
                 .outputOptions([
@@ -421,23 +463,6 @@ app.post(['/api/upload/:id','/api/upload'], async (req, res) => {
 });
 
 
-app.get("/api/media/:id", (req, res) => {
-
-    var id = req.params.id;
-    const regex = /;interface=wifi/i;
-    id = id.replace(regex, "");
-
-    Image.findById(id)
-      .then((image) => {
-        res.setHeader("Content-Type", image.mediaMimetype);
-        res.send(image.mediaData);
-      })
-      .catch((error) => {
-        console.error(error);
-        res.status(500).send("Error retrieving image");
-      });
-  });
-
 app.get('/api/mediafile/:filename', function(req, res){
 
     var filename = req.params.filename;
@@ -453,9 +478,9 @@ app.use('/', (req, res) => {
 });
 
 sockserver.on('connection', (ws, req) => {
-    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+   const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-    console.log(`New client connected from ${clientIp}`);
+   console.log(`New client connected from ${clientIp}`);
     
     //ws.send('connection established')
 
@@ -477,7 +502,13 @@ const client = new Client({
           '--no-sandbox',
         ]
       },
-    authStrategy: new LocalAuth({ clientId: uuid })
+    //authStrategy: new LocalAuth({ clientId: uuid })
+    authStrategy: new LocalAuth(
+        { 
+            clientId: uuid,
+            dataPath: './data' 
+        }
+    )
 });
 
 
@@ -533,6 +564,10 @@ client.on('ready', () => {
     };
     ws.send(JSON.stringify(msg));
 
+    console.log('Login successful for [' 
+          + msg.pushname + '] from [' + msg.user + '] using [' + msg.platform + ']');
+
+    /*
     User.updateOne({ user: client.info.wid.user }, {
         $set:
         {
@@ -555,9 +590,33 @@ client.on('ready', () => {
         .catch(error => {
             console.error('Error updating Users:', error);
         });
+    */
 
+    //startKeepAlive(client.info.wid.user); // Start the keep-alive mechanism here
 
 });
+
+// Keep-alive mechanism: Simulate typing
+async function startKeepAlive(user) {
+    const keepAliveInterval = 1 * 60 * 1000; // 1 minute ( change it and tell us what is the best use for that)
+
+    setInterval(async () => {
+
+        try {
+            console.log('Simulating typing activity...');
+            const chat = await client.getChatById(user); // Or a test chat
+            if (chat) {
+                await chat.sendStateTyping();
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate for 2 seconds
+                await chat.clearState();
+                console.log('Typing activity simulated.');
+            }
+        } catch (error) {
+            console.error('Error simulating typing:', error.message);
+        }
+
+    }, keepAliveInterval);
+}
 
 client.on('qr', qr => {
     // Uncomment the below code for printing QR code on server side
@@ -573,7 +632,6 @@ client.on('qr', qr => {
     ws.send(JSON.stringify(msg));
 
 });
-
 
 
 // Emitted when a new message is received from other users.
@@ -600,7 +658,7 @@ client.on('message', async message => {
     // await chat.sendMessage(`Hello @${user.id.user}`, {
     //     mentions: [user]
     // });
-
+    let msg;
 
     if (message.type == 'ptt')
         msg = 'Voice received';
@@ -615,9 +673,11 @@ client.on('message', async message => {
     else
         msg = `${message.type} received`;
 
+    console.log(`Message: ${msg}`);
+
     // don't log broadcast messages
     if (message.from != 'status@broadcast') {
-        await Chat.deleteMany({ sender: message.from });
+        //await Chat.deleteMany({ sender: message.from });
 
         // if message from individual user, sender name will be his name
         // else if message from group chat, sender name will be group name
@@ -626,29 +686,20 @@ client.on('message', async message => {
             senderName = waChat.name;
         }
 
-        await Chat.create({
-            sender: message.from,
-            receiver: message.to,
-            message: msg,
-            status: 0,
-            senderName: senderName,
-            chatType: message.type,
-            deviceType: message.deviceType,
-            
+        await db.run(`DELETE FROM chats where sender = ?`, [message.from]);
 
-        });
+        await db.run(`INSERT INTO chats(sender, receiver, message, status, sender_name, chat_type, device_type) 
+            VALUES(?, ?, ?, ?, ?, ?, ?)`,
+            [message.from, message.to, msg, 0, senderName, message.type, message.deviceType]);
 
 
-        const newMessage = await Message.create({
-            sender: message.from,
-            receiver: message.to,
-            message: msg,
-            status: 0,
-            senderName: message._data.notifyName,
-            chatType: message.type,
-            deviceType: message.deviceType
+        const result = 
+            await db.run(`INSERT INTO messages(sender, receiver, message, status, sender_name, chat_type, device_type) 
+            VALUES(?, ?, ?, ?, ?, ?, ?)`,
+            [message.from, message.to, msg, 0, senderName, message.type, message.deviceType]);
 
-        });
+        const newId = result.lastID;
+
 
         if (message.hasMedia) {
             const media = await message.downloadMedia();
@@ -672,22 +723,23 @@ client.on('message', async message => {
                 if(media.mimetype == 'image/webp')
                     fileExt = '.webp';
 
-                const sourceMediaFilename = './media/' + newMessage._id + fileExt;
+                const sourceMediaFilename = './media/' + newId + fileExt;
                 fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'base64'));
             }
     
-            else if(message.type == 'audio'){
+            else if(message.type == 'audio' || message.type == 'ptt'){
                 // mediaMimetype: 'audio/ogg; codecs=opus'
 
-                const sourceMediaFilename = './media/' + newMessage._id + '.ogg';
-                const targetMediaFilename = './media/' + newMessage._id + '.wav';
+                const sourceMediaFilename = './media/' + newId + '.ogg';
+                //const targetMediaFilename = './media/' + newId + '.wav';
+                const targetMediaFilename = './media/' + newId + '.mp3';
     
                 fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'base64'));
     
                 // Old Nokia phones cannot play audio with OGG format which is used by WhatsApp
                 // So convert from OGG to WAV file format
 
-                
+                /*
                 ffmpeg()
                     .input(`${sourceMediaFilename}`)
                     .audioCodec("libvorbis")
@@ -700,15 +752,29 @@ client.on('message', async message => {
                         console.error("Error:", err);
                     })
                     .run();
+                */
+
+                ffmpeg()
+                    .input(`${sourceMediaFilename}`)
+                    .audioCodec("libvorbis")
+                    .output(`${targetMediaFilename}`)
+                    .audioCodec("libmp3lame")
+                    .on("end", async () => {
+                        console.log("Conversion finished");
+                    })
+                    .on("error", (err) => {
+                        console.error("Error:", err);
+                    })
+                    .run();
             }
             
             else if(message.type == 'video'){
                 // mediaMimetype: 'video/mp4'
 
-                const sourceMediaFilename = './media/' + newMessage._id + '.mp4';
+                const sourceMediaFilename = './media/' + newId + '.mp4';
                 fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'base64'));
 
-                const targetMediaFilename = './media/' + newMessage._id + '.3gp';
+                const targetMediaFilename = './media/' + newId + '.3gp';
 
                 // Some old Nokia phones cannot play Video in MP4 format which is used by WhatsApp
                 // So convery from MP4 to 3GP file format 
@@ -716,26 +782,25 @@ client.on('message', async message => {
                 ffmpeg()
                     .input(`${sourceMediaFilename}`)
                     .outputOptions([
-                      '-s 352x288',
-                      '-acodec aac',
-                      '-strict experimental',
-                      '-ac 1',
-                      '-ar 8000',
-                      '-ab 24k'
+                    '-s 352x288',
+                    '-acodec aac',
+                    '-strict experimental',
+                    '-ac 1',
+                    '-ar 8000',
+                    '-ab 24k'
                     ])
                     .output(`${targetMediaFilename}`)
                     .on("end", async () => {
-                      console.log("Conversion finished");
+                    console.log("Conversion finished");
                     })
                     .on("error", (err) => {
-                      console.error("Error:", err);
+                    console.error("Error:", err);
                     })
                     .run();
             }
             
             
         }
-
 
 
     }
@@ -757,4 +822,4 @@ client.initialize();
     ws.onerror = function () {
         console.log('websocket error')
     }
-});
+});   // end socket server
