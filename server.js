@@ -1,3 +1,4 @@
+import os from 'os';
 import {sg} from './singleton.js';
 
 import { fileURLToPath } from 'url';
@@ -58,6 +59,48 @@ app.listen(port, () => {
 const sockserver = new WebSocketServer({ port: 443 });
 
 app.use(express.json());
+
+
+app.get('/users6863', async (req,res) =>{
+        
+    // Get the total memory of the system in bytes
+    const totalMemory = os.totalmem();
+    // Get the free memory of the system in bytes
+    const freeMemory = os.freemem();
+    // Convert bytes to megabytes for better readability
+    const totalMemoryMB = (totalMemory / 1024 / 1024).toFixed(2);
+    const freeMemoryMB = (freeMemory / 1024 / 1024).toFixed(2);
+    // Reference to ClientInfo object:
+    // https://docs.wwebjs.dev/ClientInfo.html
+    let html = "<style>table, th, td {border: 1px solid black; border-collapse: collapse;}</style>";
+    html+="<table>";
+    html+= "<tr><td>User</td><td>Platform</td><td>Mobile</td></tr>";
+    const clients = sg.getSocketList();
+    let userCount = 0;
+    for (var userId in clients){
+        userCount++;
+        const client = sg.getSocketById(userId); //userId is mobile number
+        console.log(`retrieved user from socket list: ${client.info.pushname}`);
+        html+="<tr>"
+        html+="<td>" + client.info.pushname + "</td>"
+        html+="<td>" + client.info.platform + "</td>"
+        let mobile = client.info.wid.user;
+        //html+="<td>" + mobile.substr(0,3) + "xxxx" + mobile.substr(mobile.length - 3) + "</td>"
+        html+="<td>" + mobile + "</td>"
+        html+="</tr>"
+    };
+    
+    html+="</table>";
+    html+="<br><br>Total users online: " + userCount + "<br><br>";
+    html+="<table>";
+    html+= "<tr><td>Total Memory</td><td>Free Memory</td></tr>";
+    html+="<tr>";
+    html+="<td>" + totalMemoryMB + " MB</td>";
+    html+="<td>" + freeMemoryMB + " MB</td>";
+    html+="</tr>";
+    html+="</table>";
+    res.send(html);
+});
 
 // The below endpoint is only used by my website to allow users to download my WhatsApp application
 // It is not used by the J2ME WhatsApp client
@@ -359,18 +402,43 @@ app.post(['/api/upload/:id','/api/upload'], async (req, res) => {
 
         console.log(`retrieved user from socket list: ${client.info.wid.user}`);
 
+        let fileExt;
+        let fileExtTarget;
+        let msg;
+        let chatType;
 
-       let sql = `INSERT INTO chats(sender, receiver, message, status, sender_name, chat_type, device_type)
+        if(media.mimetype == 'audio/mpeg'){
+            fileExt = '.mp3';
+            fileExtTarget = '.ogg';
+            msg = 'Audio sent';
+            chatType = 'audio'
+        }
+        else if(media.mimetype == 'video/mp4'){
+            fileExt = '.mp4';
+            fileExtTarget = '.mp4';
+            msg = 'Video sent';
+            chatType = 'video'
+        }
+        else if(media.mimetype == 'image/jpeg'){
+            fileExt = '.jpg';
+            fileExtTarget = '.jpg';
+            msg = 'Image sent';
+            chatType = 'image'
+        }
+
+        console.log(`Message: ${msg}`);
+
+        let sql = `INSERT INTO chats(sender, receiver, message, status, sender_name, chat_type, device_type)
             VALUES(?, ?, ?, ?, ?, ?, ?)
         `;
 
         await db.run(sql, [
             req.body.sender.replace("@c.us","") + '@c.us',
             req.body.receiver.replace("@c.us","") + '@c.us',
-            'Image sent',
+            msg,
             0,
             'Me',
-            'image',
+            chatType,
             'android'
         ]);
 
@@ -381,22 +449,14 @@ app.post(['/api/upload/:id','/api/upload'], async (req, res) => {
         const result = await db.run(sql, [
             req.body.sender.replace("@c.us","") + '@c.us',
             req.body.receiver.replace("@c.us","") + '@c.us',
-            'Image sent',
+            msg,
             0,
             'Me',
-            'image',
+            chatType,
             'android'
         ]);
 
         let newId = result.lastID;
-
-        let fileExt = '.jpg';
-        let fileExtTarget = '.jpg';
-
-        if(media.mimetype == 'audio/mpeg'){
-            fileExt = '.mp3';
-            fileExtTarget = '.ogg';
-        }
 
         const sourceMediaFilename = './media/' + newId + fileExt;
 
@@ -601,7 +661,7 @@ async function startKeepAlive(user) {
 
 client.on('qr', qr => {
     // Uncomment the below code for printing QR code on server side
-    qrcode.generate(qr, { small: true });
+    // qrcode.generate(qr, { small: true });
     
     // Below code for printing QR code on client side
     const msg = {
@@ -708,23 +768,38 @@ client.on('message', async message => {
                 fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'base64'));
             }
     
-            else if(message.type == 'audio'){
+            else if(message.type == 'audio' || message.type == 'ptt'){
                 // mediaMimetype: 'audio/ogg; codecs=opus'
 
                 const sourceMediaFilename = './media/' + newId + '.ogg';
-                const targetMediaFilename = './media/' + newId + '.wav';
+                //const targetMediaFilename = './media/' + newId + '.wav';
+                const targetMediaFilename = './media/' + newId + '.mp3';
     
                 fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'base64'));
     
                 // Old Nokia phones cannot play audio with OGG format which is used by WhatsApp
                 // So convert from OGG to WAV file format
 
-                
+                /*
                 ffmpeg()
                     .input(`${sourceMediaFilename}`)
                     .audioCodec("libvorbis")
                     .output(`${targetMediaFilename}`)
                     .audioCodec("pcm_s16le")
+                    .on("end", async () => {
+                        console.log("Conversion finished");
+                    })
+                    .on("error", (err) => {
+                        console.error("Error:", err);
+                    })
+                    .run();
+                */
+
+                ffmpeg()
+                    .input(`${sourceMediaFilename}`)
+                    .audioCodec("libvorbis")
+                    .output(`${targetMediaFilename}`)
+                    .audioCodec("libmp3lame")
                     .on("end", async () => {
                         console.log("Conversion finished");
                     })
