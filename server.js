@@ -477,12 +477,11 @@ app.use('/', (req, res) => {
     res.sendFile('/index.html', { root: __dirname });
 });
 
-sockserver.on('connection', (ws, req) => {
-   const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+// sockserver.on('connection', (ws, req) => {
+//    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+//    console.log(`New client connected from ${clientIp}`);
+//    ws.send('connection established')
 
-   console.log(`New client connected from ${clientIp}`);
-    
-    //ws.send('connection established')
 
 // START WhatsApp client code ==========================================================================
 
@@ -562,7 +561,7 @@ client.on('ready', () => {
         user: client.info.wid.user, 
         platform: client.info.platform
     };
-    ws.send(JSON.stringify(msg));
+    //ws.send(JSON.stringify(msg));
 
     console.log('Login successful for [' 
           + msg.pushname + '] from [' + msg.user + '] using [' + msg.platform + ']');
@@ -620,7 +619,7 @@ async function startKeepAlive(user) {
 
 client.on('qr', qr => {
     // Uncomment the below code for printing QR code on server side
-    // qrcode.generate(qr, { small: true });
+    qrcode.generate(qr, { small: true });
     
     // Below code for printing QR code on client side
     const msg = {
@@ -629,7 +628,7 @@ client.on('qr', qr => {
     };
 
     // Return generated QR code to the webpage (login.html) thru web sockets
-    ws.send(JSON.stringify(msg));
+    //ws.send(JSON.stringify(msg));
 
 });
 
@@ -812,14 +811,14 @@ client.initialize();
 
 // END WhatsApp client code ===========================================================================
 
-    ws.on('close', () => console.log('Client has disconnected!'))
-    ws.on('message', data => {
-        sockserver.clients.forEach(client => {
-            //console.log(`distributing message: ${data}`)
-            //client.send(`${data}`)
-        })
-    })
-    ws.onerror = function () {
-        console.log('websocket error')
-    }
-});   // end socket server
+    // ws.on('close', () => console.log('Client has disconnected!'))
+    // ws.on('message', data => {
+    //     sockserver.clients.forEach(client => {
+    //         //console.log(`distributing message: ${data}`)
+    //         //client.send(`${data}`)
+    //     })
+    // })
+    // ws.onerror = function () {
+    //     console.log('websocket error')
+    // }
+//});   // end socket server
