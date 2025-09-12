@@ -685,6 +685,10 @@ client.on('message', async message => {
         if(waChat.isGroup){
             senderName = waChat.name;
         }
+        if(senderName == undefined || senderName == null || senderName == ''){
+            senderName = message.from;
+        }
+
 
         await db.run(`DELETE FROM chats where sender = ?`, [message.from]);
 
