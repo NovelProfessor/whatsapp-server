@@ -736,24 +736,28 @@ client.on('message', async message => {
 
         // if message from individual user, sender name will be his name
         // else if message from group chat, sender name will be group name
-        let senderName = message._data.notifyName;
+
+        let senderNameForChat = message._data.notifyName;
+        let senderNameForMessages = message._data.notifyName;
+
         if(waChat.isGroup){
-            senderName = waChat.name;
+            senderNameForChat = waChat.name;
         }
-        console.log(`senderName: [${senderName}]`);
 
-
+        console.log(`senderNameForChat: [${senderNameForChat}]`);
+        console.log(`senderNameForMessages: [${senderNameForMessages}]`);
+        
         await db.run(`DELETE FROM chats where sender = ?`, [message.from]);
 
         await db.run(`INSERT INTO chats(sender, receiver, message, status, sender_name, chat_type, device_type) 
             VALUES(?, ?, ?, ?, ?, ?, ?)`,
-            [message.from, message.to, msg, 0, senderName, message.type, message.deviceType]);
+            [message.from, message.to, msg, 0, senderNameForChat, message.type, message.deviceType]);
 
 
         const result = 
             await db.run(`INSERT INTO messages(sender, receiver, message, status, sender_name, chat_type, device_type) 
             VALUES(?, ?, ?, ?, ?, ?, ?)`,
-            [message.from, message.to, msg, 0, senderName, message.type, message.deviceType]);
+            [message.from, message.to, msg, 0, senderNameForMessages, message.type, message.deviceType]);
 
         const newId = result.lastID;
 
