@@ -788,15 +788,15 @@ client.on('message', async message => {
                 // mediaMimetype: 'audio/ogg; codecs=opus'
 
                 const sourceMediaFilename = './media/' + newId + '.ogg';
-                const targetMediaFilename = './media/' + newId + '.wav';
-                //const targetMediaFilename = './media/' + newId + '.mp3';
+                //const targetMediaFilename = './media/' + newId + '.wav';
+                const targetMediaFilename = './media/' + newId + '.mp3';
     
                 fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'base64'));
     
                 // Old Nokia phones cannot play audio with OGG format which is used by WhatsApp
                 // So convert from OGG to WAV file format
 
-                
+                /*
                 ffmpeg()
                     .input(`${sourceMediaFilename}`)
                     .audioCodec("libvorbis")
@@ -809,8 +809,8 @@ client.on('message', async message => {
                         console.error("Error:", err);
                     })
                     .run();
+                */
                 
-                /*
                 ffmpeg()
                     .input(`${sourceMediaFilename}`)
                     .audioCodec("libvorbis")
@@ -823,7 +823,7 @@ client.on('message', async message => {
                         console.error("Error:", err);
                     })
                     .run();
-                    */
+                    
             }
             
             else if(message.type == 'video'){
