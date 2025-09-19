@@ -77,6 +77,61 @@ app.use('/login', (req, res) => {
 });
 
 
+app.get('/api/allchats/:user', async(req, res) => {
+
+    try {
+        var mobileNumber = req.params.user;
+        const regex = /;interface=wifi/i;
+        mobileNumber = mobileNumber.replace(regex, "");
+
+        const client = sg.getSocketById(mobileNumber.replace("@c.us","")); //user is mobile number
+        if(client == undefined)
+            return res.status(401).json({error: "User session not found"});
+
+        var chats = await client.getChats();
+
+
+
+        res.status(200).json({chats: chats});
+
+    } catch (error){
+        console.log(error);
+        res.status(500).json({error: error.message});
+    }
+
+});
+
+app.get('/api/allmessages/:user/:chatId', async(req, res) => {
+
+    try {
+        
+        var mobileNumber = req.params.user;
+        const regex = /;interface=wifi/i;
+        mobileNumber = mobileNumber.replace(regex, "");
+
+        const client = sg.getSocketById(mobileNumber.replace("@c.us","")); //user is mobile number
+        if(client == undefined)
+            return res.status(401).json({error: "User session not found"});
+
+        var chatId = req.params.chatId;
+        var chat = await client.getChatById(chatId);
+        if(chat == undefined)
+            return res.status(404).json({error: "Chat not found"});
+
+        const messages = await chat.fetchMessages({limit: 2});
+
+
+
+        res.status(200).json({messages: messages});
+
+    } catch (error){
+        console.log(error);
+        res.status(500).json({error: error.message});
+    }
+
+});
+
+
 // The below endpoint is called by the J2ME WhatsApp client to list the Chats in the chats screen
 // The string ';interface=wifi' gets added to the URL just to force BlackBerry (OS 6 and 7) devices to use WiFi
 
@@ -733,15 +788,15 @@ client.on('message', async message => {
                 // mediaMimetype: 'audio/ogg; codecs=opus'
 
                 const sourceMediaFilename = './media/' + newId + '.ogg';
-                //const targetMediaFilename = './media/' + newId + '.wav';
-                const targetMediaFilename = './media/' + newId + '.mp3';
+                const targetMediaFilename = './media/' + newId + '.wav';
+                //const targetMediaFilename = './media/' + newId + '.mp3';
     
                 fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'base64'));
     
                 // Old Nokia phones cannot play audio with OGG format which is used by WhatsApp
                 // So convert from OGG to WAV file format
 
-                /*
+                
                 ffmpeg()
                     .input(`${sourceMediaFilename}`)
                     .audioCodec("libvorbis")
@@ -754,8 +809,8 @@ client.on('message', async message => {
                         console.error("Error:", err);
                     })
                     .run();
-                */
-
+                
+                /*
                 ffmpeg()
                     .input(`${sourceMediaFilename}`)
                     .audioCodec("libvorbis")
@@ -768,6 +823,7 @@ client.on('message', async message => {
                         console.error("Error:", err);
                     })
                     .run();
+                    */
             }
             
             else if(message.type == 'video'){

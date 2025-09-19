@@ -73,5 +73,9 @@ sql = `CREATE TABLE IF NOT EXISTS messages (
 
 await db.exec(sql);
 console.log(`messages table created.`);
-
+/*
+sql = `update chats set timestamp='2025-09-01 09:10:11'  where _id=35`;
+await db.exec(sql);
+console.log(`custom sql executed`);
+*/
 export {db};
