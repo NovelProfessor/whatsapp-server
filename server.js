@@ -746,6 +746,9 @@ client.on('message', async message => {
 
         console.log(`senderNameForChat: [${senderNameForChat}]`);
         console.log(`senderNameForMessages: [${senderNameForMessages}]`);
+
+        if(senderNameForMessages == undefined)
+            senderNameForMessages = message.from;
         
         await db.run(`DELETE FROM chats where sender = ?`, [message.from]);
 
