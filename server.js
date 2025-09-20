@@ -182,8 +182,29 @@ app.get('/api/chats/:receiver', async (req, res) => {
 app.get('/api/contacts/:user', async(req, res) => {
 
     try {
-        var mobileNumber = req.params.user;
+
+        var pageSize = 30, page = 0;
         const regex = /;interface=wifi/i;
+        var searchTerm='';
+            
+        if(req.query.search_term !== undefined && req.query.search_term !== ''){
+            searchTerm = req.query.search_term;
+            searchTerm = searchTerm.replace(regex, "");
+        }
+
+        if(req.query.page_size !== undefined && req.query.page_size !== ''){
+            pageSize = req.query.page_size;
+            pageSize = pageSize.replace(regex, "");
+        }
+
+        if(req.query.page !== undefined && req.query.page !== ''){
+            page = req.query.page;
+            page = page.replace(regex, "");
+        }  
+
+        
+
+        var mobileNumber = req.params.user;
         mobileNumber = mobileNumber.replace(regex, "");
 
         const client = sg.getSocketById(mobileNumber.replace("@c.us","")); //user is mobile number
@@ -193,7 +214,9 @@ app.get('/api/contacts/:user', async(req, res) => {
         var contacts = await client.getContacts();
 
         var filteredContacts =  contacts.filter(item => {
-            return item.isWAContact == true && item.id.server != "lid" && item.isBusiness != true;
+            return item.isWAContact == true 
+                && item.id.server != "lid" 
+                && item.isBusiness != true
         });
 
         const compactContactsList = filteredContacts.map(item => {
@@ -211,9 +234,18 @@ app.get('/api/contacts/:user', async(req, res) => {
                 container.name = item.id.user;
 
             return container;
-        })
+        });
 
-        res.status(200).json({contacts: compactContactsList});
+        var filteredContacts2 =  compactContactsList.filter(item => {
+            return item.name.toLowerCase().includes(searchTerm.toLowerCase());
+        });
+
+        var startIndex = page * pageSize;
+        var endIndex = parseInt(startIndex) + parseInt(pageSize);
+
+        console.log(`page: ${page}, pageSize: ${pageSize}, startIndex: ${startIndex}, endIndex: ${endIndex}, count: ${filteredContacts2.length}`);
+
+        res.status(200).json({contacts: filteredContacts2.slice(startIndex, endIndex), count: filteredContacts2.length});
 
     } catch (error){
         console.log(error);
@@ -749,6 +781,9 @@ client.on('message', async message => {
 
         if(senderNameForMessages == undefined)
             senderNameForMessages = message.from;
+
+        if(senderNameForChat == undefined)
+            senderNameForChat = message.from;
         
         await db.run(`DELETE FROM chats where sender = ?`, [message.from]);
 
