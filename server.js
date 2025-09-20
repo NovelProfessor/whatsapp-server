@@ -77,6 +77,61 @@ app.use('/login', (req, res) => {
 });
 
 
+app.get('/api/allchats/:user', async(req, res) => {
+
+    try {
+        var mobileNumber = req.params.user;
+        const regex = /;interface=wifi/i;
+        mobileNumber = mobileNumber.replace(regex, "");
+
+        const client = sg.getSocketById(mobileNumber.replace("@c.us","")); //user is mobile number
+        if(client == undefined)
+            return res.status(401).json({error: "User session not found"});
+
+        var chats = await client.getChats();
+
+
+
+        res.status(200).json({chats: chats});
+
+    } catch (error){
+        console.log(error);
+        res.status(500).json({error: error.message});
+    }
+
+});
+
+app.get('/api/allmessages/:user/:chatId', async(req, res) => {
+
+    try {
+        
+        var mobileNumber = req.params.user;
+        const regex = /;interface=wifi/i;
+        mobileNumber = mobileNumber.replace(regex, "");
+
+        const client = sg.getSocketById(mobileNumber.replace("@c.us","")); //user is mobile number
+        if(client == undefined)
+            return res.status(401).json({error: "User session not found"});
+
+        var chatId = req.params.chatId;
+        var chat = await client.getChatById(chatId);
+        if(chat == undefined)
+            return res.status(404).json({error: "Chat not found"});
+
+        const messages = await chat.fetchMessages({limit: 2});
+
+
+
+        res.status(200).json({messages: messages});
+
+    } catch (error){
+        console.log(error);
+        res.status(500).json({error: error.message});
+    }
+
+});
+
+
 // The below endpoint is called by the J2ME WhatsApp client to list the Chats in the chats screen
 // The string ';interface=wifi' gets added to the URL just to force BlackBerry (OS 6 and 7) devices to use WiFi
 
@@ -127,8 +182,29 @@ app.get('/api/chats/:receiver', async (req, res) => {
 app.get('/api/contacts/:user', async(req, res) => {
 
     try {
-        var mobileNumber = req.params.user;
+
+        var pageSize = 30, page = 0;
         const regex = /;interface=wifi/i;
+        var searchTerm='';
+            
+        if(req.query.search_term !== undefined && req.query.search_term !== ''){
+            searchTerm = req.query.search_term;
+            searchTerm = searchTerm.replace(regex, "");
+        }
+
+        if(req.query.page_size !== undefined && req.query.page_size !== ''){
+            pageSize = req.query.page_size;
+            pageSize = pageSize.replace(regex, "");
+        }
+
+        if(req.query.page !== undefined && req.query.page !== ''){
+            page = req.query.page;
+            page = page.replace(regex, "");
+        }  
+
+        
+
+        var mobileNumber = req.params.user;
         mobileNumber = mobileNumber.replace(regex, "");
 
         const client = sg.getSocketById(mobileNumber.replace("@c.us","")); //user is mobile number
@@ -138,7 +214,9 @@ app.get('/api/contacts/:user', async(req, res) => {
         var contacts = await client.getContacts();
 
         var filteredContacts =  contacts.filter(item => {
-            return item.isWAContact == true && item.id.server != "lid" && item.isBusiness != true;
+            return item.isWAContact == true 
+                && item.id.server != "lid" 
+                && item.isBusiness != true
         });
 
         const compactContactsList = filteredContacts.map(item => {
@@ -156,9 +234,18 @@ app.get('/api/contacts/:user', async(req, res) => {
                 container.name = item.id.user;
 
             return container;
-        })
+        });
 
-        res.status(200).json({contacts: compactContactsList});
+        var filteredContacts2 =  compactContactsList.filter(item => {
+            return item.name.toLowerCase().includes(searchTerm.toLowerCase());
+        });
+
+        var startIndex = page * pageSize;
+        var endIndex = parseInt(startIndex) + parseInt(pageSize);
+
+        console.log(`page: ${page}, pageSize: ${pageSize}, startIndex: ${startIndex}, endIndex: ${endIndex}, count: ${filteredContacts2.length}`);
+
+        res.status(200).json({contacts: filteredContacts2.slice(startIndex, endIndex), count: filteredContacts2.length});
 
     } catch (error){
         console.log(error);
@@ -680,22 +767,34 @@ client.on('message', async message => {
 
         // if message from individual user, sender name will be his name
         // else if message from group chat, sender name will be group name
-        let senderName = message._data.notifyName;
+
+        let senderNameForChat = message._data.notifyName;
+        let senderNameForMessages = message._data.notifyName;
+
         if(waChat.isGroup){
-            senderName = waChat.name;
+            senderNameForChat = waChat.name;
         }
 
+        console.log(`senderNameForChat: [${senderNameForChat}]`);
+        console.log(`senderNameForMessages: [${senderNameForMessages}]`);
+
+        if(senderNameForMessages == undefined)
+            senderNameForMessages = message.from;
+
+        if(senderNameForChat == undefined)
+            senderNameForChat = message.from;
+        
         await db.run(`DELETE FROM chats where sender = ?`, [message.from]);
 
         await db.run(`INSERT INTO chats(sender, receiver, message, status, sender_name, chat_type, device_type) 
             VALUES(?, ?, ?, ?, ?, ?, ?)`,
-            [message.from, message.to, msg, 0, senderName, message.type, message.deviceType]);
+            [message.from, message.to, msg, 0, senderNameForChat, message.type, message.deviceType]);
 
 
         const result = 
             await db.run(`INSERT INTO messages(sender, receiver, message, status, sender_name, chat_type, device_type) 
             VALUES(?, ?, ?, ?, ?, ?, ?)`,
-            [message.from, message.to, msg, 0, senderName, message.type, message.deviceType]);
+            [message.from, message.to, msg, 0, senderNameForMessages, message.type, message.deviceType]);
 
         const newId = result.lastID;
 
