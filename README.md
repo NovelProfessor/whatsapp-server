@@ -15,8 +15,11 @@ This application uses the whatsapp-web.js NodeJS library to launch a headless (i
 
 This application requires MongoDB and NodeJS to run.
 
-### Install MongoDB 8.0 Community Edition
-Just follow the installation instructions for your operating system on the [official Mongo website][mongodb]
+### ~~Install MongoDB 8.0 Community Edition~~
+~~Just follow the installation instructions for your operating system on the [official Mongo website][mongodb]~~
+
+MongoDB is no longer required as I switched to SQLite3 database which is installed as a dependency and you don't have to install it separately.
+
 
 ### Install NodeJS
 Just get the latest LTS from the [official node website][nodejs].
