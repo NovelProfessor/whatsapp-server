@@ -15,8 +15,11 @@ This application uses the whatsapp-web.js NodeJS library to launch a headless (i
 
 This application requires MongoDB and NodeJS to run.
 
-### Install MongoDB 8.0 Community Edition
-Just follow the installation instructions for your operating system on the [official Mongo website][mongodb]
+### ~~Install MongoDB 8.0 Community Edition~~
+~~Just follow the installation instructions for your operating system on the [official Mongo website][mongodb]~~
+
+MongoDB is no longer required as I switched to SQLite3 database which is installed as a dependency and you don't have to install it separately.
+
 
 ### Install NodeJS
 Just get the latest LTS from the [official node website][nodejs].
@@ -125,7 +128,7 @@ I don't have time for live chat, if you want to ask something or provide your fe
 
 ## Disclaimer
 
-This project is not affiliated, associated, authorized, endorsed by, or in any way officially connected with WhatsApp or any of its subsidiaries or its affiliates. The official WhatsApp website can be found at [whatsapp.com][whatsapp]. "WhatsApp" as well as related names, marks, emblems and images are registered trademarks of their respective owners. Also it is not guaranteed you will not be blocked by using this method. WhatsApp does not allow bots or unofficial clients on their platform, so this shouldn't be considered totally safe.
+This project is not affiliated, associated, authorized, endorsed by, or in any way officially connected with WhatsApp or any of its subsidiaries or its affiliates. The official WhatsApp website can be found at [whatsapp.com](http://whatsapp.com). "WhatsApp" as well as related names, marks, emblems and images are registered trademarks of their respective owners.
 
 ## License
 
