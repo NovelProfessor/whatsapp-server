@@ -25,8 +25,8 @@ const ffmpegPath = ffmpeg1.path;
 
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
-// ffmpeg.setFfmpegPath(ffmpegPath);
-ffmpeg.setFfmpegPath('./bin/ffmpeg/ffmpeg');
+ffmpeg.setFfmpegPath(ffmpegPath);
+// ffmpeg.setFfmpegPath('/usr/bin/ffmpeg');
 
 
 // Use the express-fileupload middleware
