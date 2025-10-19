@@ -1,6 +1,7 @@
 FROM node:22
 
 RUN apt-get update && apt-get install -y \
+    ffmpeg \
     libgbm-dev \
     libnss3 \
     libxss1 \
@@ -25,10 +26,6 @@ WORKDIR /app
 COPY . .
 
 RUN npm ci
-
-COPY ffmpeg /app/node_modules/@ffmpeg-installer/linux-x64/ffmpeg
-
-WORKDIR /app
 
 RUN mkdir /app/data
 RUN mkdir /app/media
