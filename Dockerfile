@@ -26,7 +26,7 @@ COPY . .
 
 RUN npm ci
 
-COPY /usr/bin/ffmpeg /app/node_modules/@ffmpeg-installer/linux-x64/ffmpeg
+COPY ffmpeg /app/node_modules/@ffmpeg-installer/linux-x64/ffmpeg
 
 RUN mkdir /app/data
 RUN mkdir /app/media
