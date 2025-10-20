@@ -20,13 +20,14 @@ import { v4 as uuidv4 } from 'uuid';
 
 // FFMPEG library is used to convert WhatsApp audio and video to a format that is compatible with old Nokia phones
 
-import ffmpeg1 from '@ffmpeg-installer/ffmpeg';
-const ffmpegPath = ffmpeg1.path;
-
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
-ffmpeg.setFfmpegPath(ffmpegPath);
-// ffmpeg.setFfmpegPath('/usr/bin/ffmpeg');
+
+// Use below path if script is running on Mac OS and FFMPEG is installed using "brew install ffmpeg"
+// ffmpeg.setFfmpegPath('/opt/homebrew/bin/ffmpeg');
+
+// Use below path if script is running on Ubuntu linux and FFMPEG is installed using "apt install ffmpeg"
+ffmpeg.setFfmpegPath('/usr/bin/ffmpeg');
 
 
 // Use the express-fileupload middleware
