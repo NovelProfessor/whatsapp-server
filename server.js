@@ -568,7 +568,7 @@ sockserver.on('connection', (ws, req) => {
    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
    console.log(`New client connected from ${clientIp}`);
-    
+  
     //ws.send('connection established')
 
 // START WhatsApp client code ==========================================================================
@@ -583,12 +583,13 @@ const uuid = uuidv4();
 
 
 const client = new Client({
-    puppeteer: {
-        headless: true,
-        args: [
-          '--no-sandbox',
-        ]
-      },
+        puppeteer: { 
+            headless: true, 
+            executablePath: '/usr/bin/google-chrome',
+            args: [
+                '--no-sandbox',
+            ]
+        },
     //authStrategy: new LocalAuth({ clientId: uuid })
     authStrategy: new LocalAuth(
         { 
