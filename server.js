@@ -14,6 +14,7 @@ import qrcode from 'qrcode-terminal';
 import express from 'express';
 const app = express();
 const port = process.env.PORT || 80;
+const wsPort = process.env.WS_PORT || 443;
 import fileUpload from 'express-fileupload';
 import { WebSocketServer } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
@@ -32,6 +33,7 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 app.use(fileUpload());
 
 import {db} from './connect.js';
+import fetch from 'node-fetch';
 
 
 // create media folder if it doesn't exist
@@ -56,7 +58,7 @@ app.listen(port, () => {
     console.log(`Server started on port ${port}`);
 });
 
-const sockserver = new WebSocketServer({ port: 443 });
+const sockserver = new WebSocketServer({ port: wsPort });
 
 app.use(express.json());
 
@@ -159,7 +161,7 @@ app.get('/api/chats/:receiver', async (req, res) => {
         if(client == undefined)
             return res.status(401).json({error: "User session not found"});
 
-        const rows = await db.all(`SELECT * from chats WHERE receiver = ? ORDER BY timestamp DESC LIMIT 20`, [receiver]);
+        const rows = await db.all(`SELECT * from chats WHERE receiver = ? ORDER BY timestamp DESC LIMIT 500`, [receiver]);
         let chats = rows.map((row) => ({
                 _id: row._id,
                 sender: row.sender,
@@ -183,7 +185,7 @@ app.get('/api/contacts/:user', async(req, res) => {
 
     try {
 
-        var pageSize = 30, page = 0;
+        var pageSize = 1000, page = 0;
         const regex = /;interface=wifi/i;
         var searchTerm='';
             
@@ -243,8 +245,6 @@ app.get('/api/contacts/:user', async(req, res) => {
         var startIndex = page * pageSize;
         var endIndex = parseInt(startIndex) + parseInt(pageSize);
 
-        console.log(`page: ${page}, pageSize: ${pageSize}, startIndex: ${startIndex}, endIndex: ${endIndex}, count: ${filteredContacts2.length}`);
-
         res.status(200).json({contacts: filteredContacts2.slice(startIndex, endIndex), count: filteredContacts2.length});
 
     } catch (error){
@@ -284,6 +284,134 @@ app.get('/api/login/:user', async (req, res) => {
         res.status(500).json({error: error.message});
     }
 
+});
+
+// Returns the WhatsApp profile picture of a contact as a proxied image.
+// :user is the mobile number of the logged in user (session owner)
+// :contact is the mobile number of the contact whose profile picture is requested
+app.get('/api/profilepic/:user/:contact', async (req, res) => {
+
+    try {
+        const regex = /;interface=wifi/i;
+        const mobileNumber = req.params.user.replace(regex, "");
+        const contact = req.params.contact.replace(regex, "").replace(/^00/, "");
+        console.log(`[profilepic] user=${mobileNumber} contact=${contact}`);
+
+        const client = sg.getSocketById(mobileNumber);
+        if (client == undefined)
+            return res.status(401).json({ error: "User session not found" });
+
+        const contactId = contact.includes('@') ? contact : `${contact}@c.us`;
+
+        // Debug: check what WhatsApp has available for this contact
+        const picUrl = await client.pupPage.evaluate(async (contactId) => {
+            try {
+                const chatWid = window.Store.WidFactory.createWid(contactId);
+                
+                // ProfilePicThumb.find is the correct method to get the full-size URL
+                try {
+                    const r = await window.Store.ProfilePicThumb.find(chatWid);
+                    if (r && r.eurl) return r.eurl;
+                    if (r && r.img) return r.img;
+                } catch(e1) { /* ignore */ }
+                
+                return null;
+            } catch (e) {
+                return null;
+            }
+        }, contactId);
+
+        if (!picUrl)
+            return res.status(404).json({ error: "No profile picture found" });
+
+        const imageRes = await fetch(picUrl);
+        if (!imageRes.ok)
+            return res.status(502).json({ error: "Could not fetch profile picture" });
+
+        res.setHeader('Content-Type', imageRes.headers.get('content-type') || 'image/jpeg');
+        imageRes.body.pipe(res);
+
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: error.message });
+    }
+
+});
+
+function extractGroupInviteCode(inviteInput) {
+    if (!inviteInput || typeof inviteInput !== 'string') {
+        return null;
+    }
+
+    const trimmedInvite = inviteInput.trim();
+    if (trimmedInvite === '') {
+        return null;
+    }
+
+    const directCodeMatch = trimmedInvite.match(/^[A-Za-z0-9_-]{10,}$/);
+    if (directCodeMatch) {
+        return directCodeMatch[0];
+    }
+
+    const urlCodeMatch = trimmedInvite.match(/chat\.whatsapp\.com\/([A-Za-z0-9_-]{10,})/i);
+    if (urlCodeMatch) {
+        return urlCodeMatch[1];
+    }
+
+    try {
+        const inviteUrl = new URL(trimmedInvite);
+        const pathnameCodeMatch = inviteUrl.pathname.match(/\/([A-Za-z0-9_-]{10,})$/);
+        return pathnameCodeMatch ? pathnameCodeMatch[1] : null;
+    } catch {
+        return null;
+    }
+}
+
+app.get('/api/groups/join/:user', async (req, res) => {
+    try {
+        const regex = /;interface=wifi/i;
+        const mobileNumber = req.params.user.replace(regex, "");
+        const inviteInput = (req.query.invite || req.query.code || '').toString().replace(regex, "");
+        const inviteCode = extractGroupInviteCode(inviteInput);
+
+        if (!inviteCode) {
+            return res.status(400).json({ error: "Invalid WhatsApp group invite" });
+        }
+
+        const client = sg.getSocketById(mobileNumber.replace("@c.us", ""));
+        if (client == undefined) {
+            return res.status(401).json({ error: "User session not found" });
+        }
+
+        const joinedChatId = await client.acceptInvite(inviteCode);
+        if (!joinedChatId) {
+            return res.status(502).json({ error: "Unable to join WhatsApp group" });
+        }
+
+        const joinedChat = await client.getChatById(joinedChatId);
+        const groupName = joinedChat?.name || joinedChatId;
+        const existingChat = await db.get(
+            `SELECT _id FROM chats WHERE sender = ? AND receiver = ? LIMIT 1`,
+            [joinedChatId, mobileNumber]
+        );
+
+        if (!existingChat) {
+            await db.run(
+                `INSERT INTO chats(sender, receiver, message, status, sender_name, chat_type, device_type)
+                 VALUES(?, ?, ?, ?, ?, ?, ?)`,
+                [joinedChatId, mobileNumber, 'Group joined', 0, groupName, 'chat', client.info.platform]
+            );
+        }
+
+        res.status(200).json({
+            message: `Joined group ${groupName}`,
+            groupId: joinedChatId,
+            groupName: groupName
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // The below endpoint is called by the J2ME WhatsApp client to fetch all the messages received by the logged in user from the selected sender
@@ -580,12 +708,13 @@ sockserver.on('connection', (ws, req) => {
 // https://wwebjs.dev/guide/creating-your-bot/
 
 const uuid = uuidv4();
+let messageHandlerRegistered = false;
 
 
 const client = new Client({
         puppeteer: { 
             headless: true, 
-            executablePath: '/usr/bin/google-chrome',
+            executablePath: '/usr/bin/chromium-browser',
             args: [
                 '--no-sandbox',
             ]
@@ -723,7 +852,9 @@ client.on('qr', qr => {
 
 
 // Emitted when a new message is received from other users.
-client.on('message', async message => {
+if (!messageHandlerRegistered) {
+    messageHandlerRegistered = true;
+    client.on('message', async message => {
 
     // below will log the group id (e.g. 120363420419601014@g.us) if message received from group
     // or it will log the user id (e.g. 966123456789@c.us) if message received from user
@@ -754,6 +885,8 @@ client.on('message', async message => {
         msg = 'Image received'; //image/jpeg, image/webp
     else if (message.type == 'audio')
         msg = 'Audio received'; //audio/ogg
+    else if (message.type == 'video' && message.isGif)
+        msg = 'GIF received'; //video/mp4 (gif)
     else if (message.type == 'video')
         msg = 'Video received'; //video/mp4
     else if (message.type == 'chat')
@@ -788,15 +921,17 @@ client.on('message', async message => {
         
         await db.run(`DELETE FROM chats where sender = ?`, [message.from]);
 
+        const chatType = (message.type == 'video' && message.isGif) ? 'gif' : message.type;
+
         await db.run(`INSERT INTO chats(sender, receiver, message, status, sender_name, chat_type, device_type) 
             VALUES(?, ?, ?, ?, ?, ?, ?)`,
-            [message.from, message.to, msg, 0, senderNameForChat, message.type, message.deviceType]);
+            [message.from, message.to, msg, 0, senderNameForChat, chatType, message.deviceType]);
 
 
         const result = 
             await db.run(`INSERT INTO messages(sender, receiver, message, status, sender_name, chat_type, device_type) 
             VALUES(?, ?, ?, ?, ?, ?, ?)`,
-            [message.from, message.to, msg, 0, senderNameForMessages, message.type, message.deviceType]);
+            [message.from, message.to, msg, 0, senderNameForMessages, chatType, message.deviceType]);
 
         const newId = result.lastID;
 
@@ -869,6 +1004,30 @@ client.on('message', async message => {
                     
             }
             
+            else if(message.type == 'video' && message.isGif){
+                // GIFs are sent by WhatsApp as video/mp4 with isGif=true
+                // Save as .gif for the app to display
+                const sourceMediaFilename = './media/' + newId + '.mp4';
+                fs.writeFileSync(sourceMediaFilename, Buffer.from(media.data, 'base64'));
+
+                const targetMediaFilename = './media/' + newId + '.gif';
+
+                ffmpeg()
+                    .input(`${sourceMediaFilename}`)
+                    .outputOptions([
+                        '-vf', 'fps=10,scale=320:-1:flags=lanczos',
+                        '-loop', '0'
+                    ])
+                    .output(`${targetMediaFilename}`)
+                    .on("end", () => {
+                        console.log("GIF conversion finished");
+                    })
+                    .on("error", (err) => {
+                        console.error("GIF conversion error:", err);
+                    })
+                    .run();
+            }
+
             else if(message.type == 'video'){
                 // mediaMimetype: 'video/mp4'
 
@@ -908,6 +1067,7 @@ client.on('message', async message => {
 
 
 });
+} // end messageHandlerRegistered guard
 
 client.initialize();
 
