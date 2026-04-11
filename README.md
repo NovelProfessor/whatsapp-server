@@ -106,7 +106,7 @@ If you want to host the server side code on the cloud instead of your local PC +
 | Send contact cards | ❌ (not yet) |
 | Send location | ❌ (not yet) |
 | Receive location | ❌ (not yet) |
-| Join groups by invite  | ❌ (not yet) |
+| Join groups by invite  | ✅ |
 | Get invite for group  | ❌ (not yet) |
 | Modify group info (subject, description)  | ❌ (not yet)  |
 | Modify group settings (send messages, edit info)  | ❌ (not yet)  |
@@ -118,7 +118,7 @@ If you want to host the server side code on the cloud instead of your local PC +
 | Mute/unmute chats | ❌ (not yet) |
 | Block/unblock contacts | ❌ (not yet) |
 | Get contact info | ❌ (not yet) |
-| Get profile pictures | ❌ (not yet) |
+| Get profile pictures | ✅ |
 | Set user status message | ❌ (not yet) |
 | React to messages | ❌ (not yet) |
 
