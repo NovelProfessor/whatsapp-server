@@ -1,7 +1,7 @@
 ## About
 **Server side code that routes traffic between WhatsApp website and my Nokia WhatsApp client written in J2ME**
 
-This application uses the whatsapp-web.js NodeJS library to launch a headless (invisible) Chromium browser on the server to login the user using WhatsApp Web login method and then intercepts all messages and stores them in local MongoDB database where they can be fetched by my Nokia WhatsApp client thru REST APIs using HTTP requests.  You can download my Nokia WhatsApp J2ME client version 1.4+ from my website.
+This application uses the whatsapp-web.js NodeJS library to launch a headless (invisible) Chromium browser on the server to login the user using WhatsApp Web login method and then intercepts all messages and stores them in local SQLite database where they can be fetched by my Nokia WhatsApp client thru REST APIs using HTTP requests.  You can download my Nokia WhatsApp J2ME client version 1.5+ from my website.
 
 > [!IMPORTANT]
 > **You need to have a public IP address or you can get a public endpoint from one of the services listed below to receive the HTTP requests from the Nokia WhatsApp client.**
@@ -10,16 +10,11 @@ This application uses the whatsapp-web.js NodeJS library to launch a headless (i
 
 * [My Website][website]
 * [My reddit page][reddit]
+* [My YouTube channel][youtube]
 
 ## Installation
 
-This application requires MongoDB and NodeJS to run.
-
-### ~~Install MongoDB 8.0 Community Edition~~
-~~Just follow the installation instructions for your operating system on the [official Mongo website][mongodb]~~
-
-MongoDB is no longer required as I switched to SQLite3 database which is installed as a dependency and you don't have to install it separately.
-
+This application requires NodeJS to run.  If you want to upload audio and video, it also requires the open source FFMPEG library to be installed on the server.  If you want to use Chrome to create your server side web session, then you need to have Chrome installed on the server as well and its executable path configured in WhatsappClient.js file depending on your OS.
 
 ### Install NodeJS
 Just get the latest LTS from the [official node website][nodejs].
@@ -34,6 +29,18 @@ After installing NodeJS, open a terminal or command prompt, go into the project 
 sudo npm install
 ```
 
+If you want to run using Chrome browser instead of the Chromium browser, use the below install command instead of the above one:
+
+```powershell
+sudo PUPPETEER_SKIP_DOWNLOAD=true npm install
+```
+
+## Setup the whatsapp script
+Open WhatsappClient.js in any editor and set the executable path to point to the folder containing the Chrome executable file inside the "startClient" function.  I have already provided the default installation paths of Chrom on Ubuntu, Mac OS and Windows, just uncomment one of them.
+
+## Modify the login page to connect to your server
+Open the login.html page in an editor and search for "nokia4ever.com" and replace it with your own domain name or IP address where your server script is running.  You can put "localhost" if you are running in locally on your PC or Laptop.
+
 ## Running the server
 Open a terminal or command prompt, Go into the project folder and run the below command to launch the server on port 80 by default.  Note that "sudo" keyword is only required for MacOS and Linux, not for Windows.  If you are hosting this server on a public VPS (Virtual Private Server) then I recommend running the script using [PM2 process manager for NodeJS][pm2]
 
@@ -41,17 +48,23 @@ Open a terminal or command prompt, Go into the project folder and run the below 
 sudo node server.js
 ```
 
+If you have PM2 process manager installed on your server, you can use the below command instead of the above one.  Here I have given a maxmum memory limit of 56 Gb (or 56494M), if used memory reaches this value, PM2 will restart the application to free memory.
+
+```powershell
+sudo pm2 start server.js --max-memory-restart 56494M
+```
+
 Wait for the server started and DB connected message to appear in the terminal, then open a browser and open the login page "http://localhost/login" to scan the QR code from your iPhone or Android where you are already logged in to WhatsApp.
 
 ## Connecting the client with the server
-When you launch my J2ME Nokia WhatsApp client version 1.4+, you can replace my server URL "nokia4ever.com" with your public IP address, e.g "92.113.151.149" inside the J2ME WhatsApp client and also inside the login.html page on the server.
+When you launch my J2ME Nokia WhatsApp client version 1.5+, you can replace my server URL "nokia4ever.com" with your public IP address, e.g "92.113.151.149" inside the J2ME WhatsApp client and also inside the login.html page on the server.
 
 If you don't have a public IP address, you can get a public endpoint from an API gateway service provider to receive traffic on your local server.  It has to be accessible thru HTTP, not HTTPS, since old Nokia phones don't support TLS 1.2
 
 ### Get a public endpoint from API gateway
-I recommend getting a public endpoint from NGROK, they are the most reliable, most feature rich and oldest provider of such a service and this is the one I use for my projects.  Go to their official website [NGROK API Gateway][ngrok] and register for an account.  Then you need to go to the "Universal Gateway > TCP Addresses" menu option on the left side and create 2 TCP address endpoints.  Download their NGROK command line tool (on windows you need to disable the Windows Defender as it thinks this tool is a virus).  
+I recommend getting a public endpoint from NGROK, they are the most reliable, most feature rich and oldest provider of such a service and this is the one I use for my projects.  Go to their official website [NGROK API Gateway][ngrok] and register for an account.  Then you need to go to the "Universal Gateway > TCP Addresses" menu option on the left side and create a TCP address endpoint.  Download their NGROK command line tool (on windows you need to disable the Windows Defender as it thinks this tool is a virus).  
 
-Suppoose the 2 TCP addresses you created are "5.tcp.ngrok.io:25805" and "7.tcp.ngrok.io:21149".  Then you will need to open 2 separate terminal windows, go to the folder where you downloaded the NGROK command line tool and run the below commands and keep them running:
+Suppoose the TCP address you created is "5.tcp.ngrok.io:25805".  Then you will need to open a terminal windows, go to the folder where you downloaded the NGROK command line tool and run the below commands and keep it running:
 
 #### Forward traffic on port 80 for HTTP Rest API calls
 Run the below command from terminal.  When you launch the J2ME Nokia WhatsApp client, the server URL will be "http://5.tcp.ngrok.io:25805".  Replace the address with your address.
@@ -59,17 +72,6 @@ Run the below command from terminal.  When you launch the J2ME Nokia WhatsApp cl
 ngrok tcp --region=us --remote-addr=5.tcp.ngrok.io:25805 80  
 ```
 
-#### Forward traffic on port 443 for returning QR code thru WebSocket
-Run the below command from another terminal.  Replace the address with your address.
-```powershell
-ngrok tcp --region=us --remote-addr=7.tcp.ngrok.io:21149 443
-```
-
-#### Modify the login page to connect to your server
-Open the login.html page in an editor and update the below line with your web socket address which you configured above to receive the QR code from the server.
-```
-const webSocket = new WebSocket('ws://7.tcp.ngrok.io:21149/');
-```
 > [!NOTE]
 > Creating TCP Address on NGROK requires upgrading the free account to Pay-as-you-go account which costs minimum 8 dollars per month.
 
@@ -132,7 +134,7 @@ This project is not affiliated, associated, authorized, endorsed by, or in any w
 
 ## License
 
-Copyright 2025 Novel Professor  
+Copyright 2026 Novel Professor  
 
 Licensed under the Apache License, Version 2.0 (the "License");  
 you may not use this project except in compliance with the License.  
@@ -147,8 +149,9 @@ limitations under the License.
 
 [website]: http://nokia4ever.com
 [reddit]: https://www.reddit.com/user/Novel-Professor3366
+[youtube]: https://youtube.com/@NovelProfessor
+
 [nodejs]: https://nodejs.org/en/download/
-[mongodb]: https://www.mongodb.com/docs/manual/administration/install-community/
 [pm2]: https://pm2.keymetrics.io/
 [localtunnel]: https://localtunnel.me/
 [ngrok]: https://ngrok.com/

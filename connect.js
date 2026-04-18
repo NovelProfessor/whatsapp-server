@@ -1,81 +1,84 @@
-import sqlite3 from 'sqlite3';
-import {open} from 'sqlite';
+const sqlite3 = require('sqlite3');
+const { open } = require('sqlite');
 
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-import fs from 'fs';
+const fs = require("fs");
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+let db;
 
-// create data folder if it doesn't exist
-const dataPath = `${__dirname}/data`;
+async function initializeDatabase() {
+    // create data folder if it doesn't exist
+    const dataPath = `${__dirname}/data`;
 
-try {
-    if (!fs.existsSync(dataPath)) {
-        fs.mkdirSync(dataPath);
-        console.log(`Folder '${dataPath}' created successfully.`);
-    } else {
-        console.log(`Folder '${dataPath}' already exists.`);
+    try {
+        if (!fs.existsSync(dataPath)) {
+            fs.mkdirSync(dataPath);
+            console.log(`Folder '${dataPath}' created successfully.`);
+        } else {
+            console.log(`Folder '${dataPath}' already exists.`);
+        }
+
+    } catch (err) {
+        console.log('Error creating data folder:', err);
+        process.exit(1);
     }
 
-} catch (err) {
-    console.log('Error creating data folder:', err);
-    process.exit(1);
+    db = await open({
+        filename: './data/mydata.db',
+        driver: sqlite3.Database
+    });
+    console.log(`connected to database.`)
+
+    let sql = `CREATE TABLE IF NOT EXISTS users (
+        _id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uuid TEXT NOT NULL,
+        pushname TEXT NOT NULL,
+        user TEXT NOT NULL,
+        platform TEXT NOT NULL,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`;
+
+    await db.exec(sql);
+    console.log(`users table created.`);
+
+
+    sql = `CREATE TABLE IF NOT EXISTS chats (
+        _id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender TEXT NOT NULL,
+        receiver TEXT NOT NULL,
+        message TEXT NOT NULL,
+        status INTEGER DEFAULT 0,
+        sender_name TEXT NOT NULL,
+        chat_type TEXT NOT NULL,
+        device_type TEXT NOT NULL,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`;
+
+    await db.exec(sql);
+    console.log(`chats table created.`);
+
+
+    sql = `CREATE TABLE IF NOT EXISTS messages (
+        _id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender TEXT NOT NULL,
+        receiver TEXT NOT NULL,
+        message TEXT NOT NULL,
+        status INTEGER DEFAULT 0,
+        sender_name TEXT NOT NULL,
+        chat_type TEXT NOT NULL,
+        device_type TEXT NOT NULL,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`;
+
+    await db.exec(sql);
+    console.log(`messages table created.`);
+    /*
+    sql = `update chats set timestamp='2025-09-01 09:10:11'  where _id=35`;
+    await db.exec(sql);
+    console.log(`custom sql executed`);
+    */
 }
 
-const db = await open({
-    filename: './data/mydata.db',
-    driver: sqlite3.Database
-});
-console.log(`connected to database.`)
-
-let sql = `CREATE TABLE IF NOT EXISTS users (
-    _id INTEGER PRIMARY KEY AUTOINCREMENT,
-    uuid TEXT NOT NULL,
-    pushname TEXT NOT NULL,
-    user TEXT NOT NULL,
-    platform TEXT NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-)`;
-
-await db.exec(sql);
-console.log(`users table created.`);
-
-
-sql = `CREATE TABLE IF NOT EXISTS chats (
-    _id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sender TEXT NOT NULL,
-    receiver TEXT NOT NULL,
-    message TEXT NOT NULL,
-    status INTEGER DEFAULT 0,
-    sender_name TEXT NOT NULL,
-    chat_type TEXT NOT NULL,
-    device_type TEXT NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-)`;
-
-await db.exec(sql);
-console.log(`chats table created.`);
-
-
-sql = `CREATE TABLE IF NOT EXISTS messages (
-    _id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sender TEXT NOT NULL,
-    receiver TEXT NOT NULL,
-    message TEXT NOT NULL,
-    status INTEGER DEFAULT 0,
-    sender_name TEXT NOT NULL,
-    chat_type TEXT NOT NULL,
-    device_type TEXT NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-)`;
-
-await db.exec(sql);
-console.log(`messages table created.`);
-/*
-sql = `update chats set timestamp='2025-09-01 09:10:11'  where _id=35`;
-await db.exec(sql);
-console.log(`custom sql executed`);
-*/
-export {db};
+module.exports = {
+    db: () => db,
+    initializeDatabase
+}
