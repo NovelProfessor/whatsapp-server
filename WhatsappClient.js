@@ -21,7 +21,7 @@ function startClient(id) {
             headless: true, 
             executablePath: '/usr/bin/google-chrome',
             // executeablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-            // executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+            // executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
             args: [
                  '--no-sandbox',
             ]
@@ -68,8 +68,8 @@ function startClient(id) {
         let waUser = await message.getContact();
         console.log(`Sender: ${waUser.id.user}`);
 
-        const waChat = await message.getChat();
-        console.log(`Chat name: ${waChat.name}`);
+        // const waChat = await message.getChat();
+        // console.log(`Chat name: ${waChat.name}`);
 
         // console.log('\nlogging full message object for debugging: \n\n');
         // console.log(message);
@@ -108,9 +108,9 @@ function startClient(id) {
             let senderNameForChat = message._data.notifyName;
             let senderNameForMessages = message._data.notifyName;
 
-            if(waChat.isGroup){
-                senderNameForChat = waChat.name;
-            }
+            // if(waChat.isGroup){
+            //     senderNameForChat = waChat.name;
+            // }
 
             console.log(`senderNameForChat: [${senderNameForChat}]`);
             console.log(`senderNameForMessages: [${senderNameForMessages}]`);
