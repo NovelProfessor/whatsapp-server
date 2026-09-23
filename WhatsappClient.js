@@ -68,8 +68,8 @@ const qrcodes = {}
         let waUser = await message.getContact();
         console.log(`Sender: ${waUser.id.user}`);
 
-        const waChat = await message.getChat();
-        console.log(`Chat name: ${waChat.name}`);
+        // const waChat = await message.getChat();
+        // console.log(`Chat name: ${waChat.name}`);
 
         // console.log('\nlogging full message object for debugging: \n\n');
         // console.log(message);
@@ -108,9 +108,9 @@ const qrcodes = {}
             let senderNameForChat = message._data.notifyName;
             let senderNameForMessages = message._data.notifyName;
 
-            if(waChat.isGroup){
-                senderNameForChat = waChat.name;
-            }
+            // if(waChat.isGroup){
+            //     senderNameForChat = waChat.name;
+            // }
 
             console.log(`senderNameForChat: [${senderNameForChat}]`);
             console.log(`senderNameForMessages: [${senderNameForMessages}]`);
