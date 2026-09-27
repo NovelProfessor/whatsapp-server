@@ -23,7 +23,9 @@ const qrcodes = {}
             // executeablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
             // executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
             args: [
-                 '--no-sandbox',
+                '--no-sandbox', 
+                '--disable-setuid-sandbox', 
+                '--disable-dev-shm-usage' // Uses /tmp instead of /dev/shm (fixes Docker crashes)
             ]
         },
     })
